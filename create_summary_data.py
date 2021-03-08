@@ -1,9 +1,7 @@
 import db_connections
-from collections import defaultdict
 
 class master_data(object):
     def __init__(self, db):
-        #self.db = db_connections.sqlite_db(db)
         self.db = db
         self.inst_ids = [i[0] for i in self.db.execute("select inst_id from customers;")]
 
@@ -66,6 +64,7 @@ class master_data(object):
         query = """
         select
         sf.inst_id,
+        Predictive_Churn_Meter,
         ds.Account_Risk_Factors,
         ds.Intent___Cylance,
         ds.Intent___Crowdstrike,
@@ -81,38 +80,68 @@ class master_data(object):
         left join data_science ds on sf.account_id = ds.AccountSFID;
         """
         data = self.db.execute(query)
-        fields = ["inst_id", "Account_Risk_Factors", "Intent___Cylance", "Intent___Crowdstrike", "Intent___Endgame", "Intent___Sentinelone"]
-        fields += ["Intent___Microsoft_Defender_ATP", "Searching_For_Solution", "Previous_Predictive_Churn_Meter"]
-        fields += ["Predictive_Churn_Meter_Changed", "Indicators_Changed", "MSSP"]
+        fields = ["inst_id", "Predictive_Churn_Meter", "Account_Risk_Factors", "Intent___Cylance", "Intent___Crowdstrike"]
+        fields += ["Intent___Endgame", "Intent___Sentinelone", "Intent___Microsoft_Defender_ATP", "Searching_For_Solution"]
+        fields += ["Previous_Predictive_Churn_Meter", "Predictive_Churn_Meter_Changed", "Indicators_Changed", "MSSP"]
         self.db.insert("master", fields, data)
 
     def audit_log_inserts(self):
         ''' Audit log has info on logins, bypass, policy-, and user-adds'''
         # Login counts
         query = """
-        select inst_id, count (*), max(event_time), (strftime('%s', 'now') - max(event_time) / 1000) / 86400
+        select
+        inst_id,
+        SUM(CASE WHEN description like 'log%in success%' and description not like 'Connector%' THEN 1 ELSE 0 END)
         from audit
-        where description like 'log%in success%'
-        and description not like 'Connector%'
-        and datetime(event_time /1000, 'unixepoch') > datetime('now', '-30 day')
+        where datetime(event_time /1000, 'unixepoch') > datetime('now', '-30 day')
         group by inst_id;
         """
         data = self.db.execute(query)
-        fields = ["inst_id", "Last_30d_Login_Count", "Last_Login", "Days_Since_Login"]
+        fields = ["inst_id", "Last_30d_Login_Count"]
+        self.db.insert("master", fields, data)
+
+        # Login Metadata
+        query = """
+        select inst_id, max(event_time), (strftime('%s', 'now') - max(event_time) / 1000) / 86400
+        from audit
+        where description like 'log%in success%'
+        and description not like 'Connector%'
+        group by inst_id;
+        """
+        data = self.db.execute(query)
+        fields = ["inst_id", "Last_Login", "Days_Since_Login"]
+        self.db.insert("master", fields, data)
+
+        # Connector login counts
+        query = """
+        select inst_id,
+        SUM(CASE WHEN description like 'Connector % logged in successfully' THEN 1 ELSE 0 END)
+        from audit
+        where datetime(event_time /1000, 'unixepoch') > datetime('now', '-30 day')
+        group by inst_id;
+        """
+        data = self.db.execute(query)
+        fields = ["inst_id", "Last_30d_Connector_Count"]
         self.db.insert("master", fields, data)
 
         # Bypass counts
         query = """
         select inst_id,
         SUM(CASE
-        WHEN description like '%all' THEN 1000000
-        WHEN description not like '%all' THEN (LENGTH(description) - LENGTH(REPLACE(description, ',', '')) +1)
+        WHEN (description like '%all'
+            and description like '%bypass%'
+            and (description like '%enabled%' or description like '%to on %')
+            and description not like '%Action)')
+        THEN 1000000
+        WHEN (description not like '%all'
+            and description like '%bypass%'
+            and (description like '%enabled%' or description like '%to on %')
+            and description not like '%Action)')
+        THEN (LENGTH(description) - LENGTH(REPLACE(description, ',', '')) +1)
+        ELSE 0
         END)
         from audit
-        where description like '%bypass%'
-        and (description like '%enabled%' or description like '%to on %')
-        and description not like '%Action)'
-        and datetime(event_time /1000, 'unixepoch') > datetime('now', '-30 day')
+        where datetime(event_time /1000, 'unixepoch') > datetime('now', '-30 day')
         group by inst_id;
         """
         data = self.db.execute(query)
@@ -144,12 +173,11 @@ class master_data(object):
         # Deployed total
         query = """
         select e.inst_id,
-        count(e.status),
-        round((count(e.status) * 1.0 / sf.licenses_purchased) * 100, 2)
+        SUM(CASE WHEN e.status in ('REGISTERED', 'BYPASS') THEN 1 ELSE 0 END),
+        ROUND(SUM(CASE WHEN e.status in ('REGISTERED', 'BYPASS') THEN 1 ELSE 0 END) * 1.0 / sf.licenses_purchased * 100, 2)
         from endpoints e
         left join sf_data sf on e.inst_id = sf.inst_id
         where e.last_contact_time > datetime('now', '-30 day')
-        and e.status in ('REGISTERED', 'BYPASS')
         group by e.inst_id;
         """
         data = self.db.execute(query)
@@ -159,12 +187,11 @@ class master_data(object):
         # Bypass counts
         query = """
         select e.inst_id,
-        count(e.status),
-        round((count(e.status) * 1.0 / sf.licenses_purchased) * 100, 2)
+        SUM(CASE when e.status like 'BYPASS' THEN 1 ELSE 0 END),
+        round(SUM(CASE when e.status like 'BYPASS' THEN 1 ELSE 0 END) * 1.0 / sf.licenses_purchased * 100, 2)
         from endpoints e
         left join sf_data sf on e.inst_id = sf.inst_id
         where e.last_contact_time > datetime('now', '-30 day')
-        and e.status in ('BYPASS')
         group by e.inst_id;
         """
         data = self.db.execute(query)
@@ -197,7 +224,10 @@ class master_data(object):
     def cua_brag(self):
         ''' Set of rules to evaluate the health of each customer based on the cua data'''
         # Get all the inst_ids & make a dict out of them
-        cua = defaultdict(list)
+        cua = {}
+        data = [i[0] for i in self.db.execute("select inst_id from master;")]
+        for inst_id in data:
+            cua[inst_id] = []
 
         # Days since last login
         query = "select inst_id from master where cast(Days_Since_Login as real) > 15;"
@@ -222,6 +252,12 @@ class master_data(object):
         data = self.db.execute(query)
         for row in data:
             cua[row[0]].append(">50 in Bypass")
+
+        # Bypass used in last 30d > 10
+        query = "select inst_id from master where cast(Last_30d_Bypass_Count as real) > 10;"
+        data = self.db.execute(query)
+        for row in data:
+            cua[row[0]].append("> 10 bypass use last 30d")
 
         # EOL > 50 endpoints
         query = "select inst_id from master where cast(Sensor_EOL_Support as real)>= 50;"
@@ -271,14 +307,16 @@ class master_data(object):
             elif count >= 4:
                 return "Red"
         data = [[inst_id, ", ".join(cua[inst_id]), len(cua[inst_id]), get_color(len(cua[inst_id]))] for inst_id in cua]
+
+        # Insert the whole deal
         fields = ["inst_id", "Violations_Triggered", "Count_of_Violations", "CUA_Brag"]
         self.db.insert("master", fields, data)
 
 if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     report = master_data(db)
-    #report.endpoint_lookup()
-    #report.direct_inserts()
-    #report.audit_log_inserts()
-    #report.endpoint_inserts()
+    report.endpoint_lookup()
+    report.direct_inserts()
+    report.audit_log_inserts()
+    report.endpoint_inserts()
     report.cua_brag()
