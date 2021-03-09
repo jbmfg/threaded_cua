@@ -46,13 +46,13 @@ class prod_connection(object):
         elif pd:
             try:
                 r = self.session.post(f"{self.backend}/{url}", json=pd, verify=False, headers={'Connection':'Close'}, timeout=timeout)
-            except requests.exceptions.ReadTimeout:
+            except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectionError) as e:
                 if tries > 0:
                     tries -= 1
-                    print(f"retrying due to read time out {url}\n\n\n\n\n\n\n\n")
+                    print(f"retrying due to {e} {url}\n\n\n\n\n\n\n\n")
                     return self.request(url, pd, tries=tries)
                 else:
-                    print("returning false due to read timeout\n\n\n\n\n\n\n\n")
+                    print("returning false due to {e}\n\n\n\n\n\n\n\n")
                     return False
             try:
                 json.dumps(r.json())
@@ -65,8 +65,7 @@ class prod_connection(object):
                     print("returning false due to json error\n\n\n\n\n\n\n\n")
                     return False
             except Exception as e:
-                print("HERHEHREHRHERHEHRE\n\n\n\n\n\n\n\n\n\n")
-                print(e)
+                print(f"In the last csr_connection.py exception: {e}")
                 raise
             if r.status_code > 299 and tries > 0:
                 tries -= 1
