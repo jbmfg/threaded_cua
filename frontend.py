@@ -4,7 +4,8 @@ import get_sf_data
 from csr_connection import prod_connection
 from get_csr_data import csr_data
 from get_support_data import get_support_data
-from create_master_data import master_data
+from create_summary_data import summary_data
+from report_writer import report
 import time
 
 def setup(sfdb):
@@ -48,13 +49,20 @@ if __name__ == "__main__":
     print(f"Time to do opp info {time.time() - start}")
     get_sf_data.get_ds_info(inst_ids, db)
     print(f"Time to ds info {time.time() - start}")
-    #csr_getter = csr_data(sfdb, db, csr, new_run=True)
+    csr_getter = csr_data(sfdb, db, csr, new_run=True)
     csr_getter.get_endpoints()
     csr_getter.get_alerts()
     csr_getter.get_audit()
     csr_getter.get_kits()
-    master_builder = master_data(db)
     get_support_data(db)
+    master_builder = summary_data(db)
+    master_builder.endpoint_lookup()
+    master_builder.direct_inserts()
+    master_builder.audit_log_inserts()
+    master_builder.endpoint_inserts()
+    master_builder.cua_brag()
+    master_builder.sensor_versions()
+    cua = report(db, "all")
 
 
 
