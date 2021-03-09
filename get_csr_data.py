@@ -47,7 +47,6 @@ class csr_data(object):
         self.db.insert("customers", fields, insert_data, pk=True)
 
     def get_audit(self):
-        CONNECTIONS = 100
         def return_audit(row, audit_item, tries=3):
             inst_id, prod, org_id = row[0], row[1], row[2]
             print(inst_id)
@@ -95,7 +94,6 @@ class csr_data(object):
                     self.db.insert("audit", fields, future.result(), pk=False, del_table=False)
 
     def get_endpoints(self):
-        CONNECTIONS = 100
         def return_endpoints(row, tries=3):
             print(f"working on {row[0]}")
             start = time.time()
@@ -168,9 +166,7 @@ class csr_data(object):
                 return results
         query = "select distinct inst_id from endpoints;"
         already_inserted = [i[0] for i in self.db.execute(query)]
-        query = "select inst_id, prod, org_key from customers where inst_id in ('a020h00001DCbItAAL', 'a020h00001DOd2WAAT', 'a020h00001CvKVxAAN')limit 100;"
-        query = "select inst_id, prod, org_key from customers where inst_id in ('a020h00001DOmwhAAD') limit 100;"
-        query = "select inst_id, prod, org_key from customers order by inst_id;"
+        query = 'select inst_id, prod, org_key from customers where org_key != "";'
         data = self.db.execute(query)
         needs = [row for row in data if row[0] not in already_inserted]
         fields = [
