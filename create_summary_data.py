@@ -1,6 +1,6 @@
 import db_connections
 
-class master_data(object):
+class summary_data(object):
     def __init__(self, db):
         self.db = db
         self.inst_ids = [i[0] for i in self.db.execute("select inst_id from customers;")]
@@ -312,11 +312,61 @@ class master_data(object):
         fields = ["inst_id", "Violations_Triggered", "Count_of_Violations", "CUA_Brag"]
         self.db.insert("master", fields, data)
 
+    def sensor_versions(self):
+        query = """
+        select
+        e.inst_id,
+        e.sensor_version || " (" || sl.os || ") " || "(" || sl.dl_available || ") " || "("  || sl.support_level || ")", count(e.sensor_version)
+        from endpoints e
+        left join sensor_lookup sl on e.sensor_version = sl.version
+        where e.last_contact_time > datetime('now', '-30 day')
+        and sensor_version <> 'No deployment'
+        group by e.inst_id, e.sensor_version, sl.os, sl.dl_available, sl.support_level;
+        """
+        ep_data = self.db.execute(query, dict=True)
+        # Fix up the column names
+        for inst_id in ep_data:
+            for v in list(ep_data[inst_id]):
+                new_header = v.replace("(true) ", "").replace("(false)", "(Unavailable)")
+                ep_data[inst_id][new_header] = ep_data[inst_id].pop(v)
+        # Make all inst_ids the same length, ie put a 0 for any versions that dont appear in the installation
+        all_versions = list(set([v for inst_id in ep_data for v in ep_data[inst_id]]))
+        all_versions.sort()
+        for v in all_versions:
+            for inst_id in ep_data:
+                ep_data[inst_id][v] = ep_data[inst_id].get(v, 0)
+        # Sort & Flatten
+        data = []
+        for inst_id in ep_data:
+            data.append([inst_id] + [ep_data[inst_id][v] for v in all_versions])
+        fields = ["inst_id"] + [f"{v}" for v in all_versions]
+        self.db.insert("sensor_versions_summary", fields, data, del_table=True, pk=True)
+
+    def os_versions(self):
+        query = """
+        select e.inst_id, e.os_version, count(e.os_version)
+        from endpoints e
+        where e.os_version <> "No deployment"
+        group by e.inst_id, e.os_version;
+        """
+        data = self.db.execute(query, dict=True)
+        # Make all inst_ids the same length, ie put a 0 for any versions that dont appear in the installation
+        all_versions = list(set([v for inst_id in data for v in data[inst_id]]))
+        all_versions.sort()
+        for v in all_versions:
+            for inst_id in data:
+                data[inst_id][v] = data[inst_id].get(v, 0)
+        # Sort & Flatten
+        rows = [[inst_id] + [data[inst_id][v] for v in all_versions] for inst_id in data]
+        fields = ["inst_id"] + [v for v in all_versions]
+        self.db.insert("os_versions", fields, rows, del_table=True, pk=True)
+
 if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
-    report = master_data(db)
-    report.endpoint_lookup()
-    report.direct_inserts()
-    report.audit_log_inserts()
-    report.endpoint_inserts()
-    report.cua_brag()
+    report = summary_data(db)
+    #report.endpoint_lookup()
+    #report.direct_inserts()
+    #report.audit_log_inserts()
+    #report.endpoint_inserts()
+    #report.cua_brag()
+    report.os_versions()
