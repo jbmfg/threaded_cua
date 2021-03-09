@@ -127,7 +127,9 @@ class sqlite_db(object):
             for chunk in chunks:
                 cur.execute("BEGIN TRANSACTION")
                 for row in chunk:
-                    query = f"INSERT INTO {table} ({','.join(fields)}) VALUES ({qms})"
+                    fields_txt = "'" + "','".join(fields) + "'"
+                    #query = f"INSERT INTO {table} ({','.join(fields)}) VALUES ({qms})"
+                    query = f"INSERT INTO {table} ({fields_txt}) VALUES ({qms})"
                     cur.execute(query, row)
                 cur.execute("COMMIT")
             return True
