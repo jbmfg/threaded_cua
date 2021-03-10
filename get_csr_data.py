@@ -161,8 +161,6 @@ class csr_data(object):
                                     for i in r.json()["results"]
                                     ]
                 print(len(results),  time.time() - start, results[0][0])
-                with open(f"{inst_id}", "w") as f:
-                    json.dump(results, f)
                 return results
         query = "select distinct inst_id from endpoints;"
         already_inserted = [i[0] for i in self.db.execute(query)]

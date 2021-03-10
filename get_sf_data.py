@@ -12,7 +12,7 @@ def get_act_info(sfdb, inst_ids, db):
     a.ARR__c,
     csm.Name,
     cse.Name,
-    a.Customer_Tier__c,
+    COALESCE(a.Customer_Success_Manager_Role__c, a.Customer_Tier__c) as Tier,
     GS_CSM_Meter_Score__c,
     GS_Overall_Score__c,
     Health_Scores_Updated__c,
@@ -22,10 +22,11 @@ def get_act_info(sfdb, inst_ids, db):
     inner join dbo.SalesforceInstallation i on a.Account_ID_18_Digits__c = i.Account__c
     left join dbo.SalesforceUser csm on a.Assigned_CP__c = csm.Id
     left join dbo.SalesforceUser cse on a.Customer_Success_Engineer__c = cse.Id
-    where i.id in ('{"','".join(inst_ids)}');
+    where i.id in ('{"','".join(inst_ids)}')
+    order by a.name;
     """
-    data = sfdb.execute(query)
-    fields = ["inst_id", "account_name", "arr", "csm", "cse", "tier", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id", "licenses_purchased"]
+    data = [[str(x) for x in sublist] for sublist in sfdb.execute(query)]
+    fields = ["inst_id", "account_name", "arr", "csm", "cse", "csm_role", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id", "licenses_purchased"]
     db.insert("sf_data", fields, data)
 
 def get_installation_info(sfdb, inst_ids, db):
@@ -99,3 +100,19 @@ def get_ds_info(inst_ids, db):
 
 def get_everything(sfdb, inst_ids):
     get_act_info(sfdb, inst_ids, db)
+
+
+if __name__ == "__main__":
+    import db_connections
+    sfdb = db_connections.sf_connection()
+    db = db_connections.sqlite_db("cua.db")
+    with open("report_setup.sql", "r") as f:
+        query = f.read()
+    custs = sfdb.execute(query)
+    inst_ids = [i[0] for i in custs]
+    initial_insert(db, custs)
+    get_act_info(sfdb, inst_ids, db)
+    get_installation_info(sfdb, inst_ids, db)
+    get_opp_info(sfdb, inst_ids, db)
+    get_ds_info(inst_ids, db)
+

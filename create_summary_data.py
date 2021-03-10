@@ -49,7 +49,7 @@ class summary_data(object):
             products[:] = set([p.strip() for p in products])
             products = ", ".join(products)
             data[x][13] = products
-        fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "Tier", "GS_Meter", "GS_Overall", "GS_Last_Updated"]
+        fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "CSM_Role", "GS_Meter", "GS_Overall", "GS_Last_Updated"]
         fields += ["Account_ID", "Licenses", "Products", "ACV", "Opportunity_Ct", "Next_Renewal", "Next_Renewal_Qt"]
         self.db.insert("master", fields, data, del_table=True)
 
@@ -347,6 +347,7 @@ class summary_data(object):
         select e.inst_id, e.os_version, count(e.os_version)
         from endpoints e
         where e.os_version <> "No deployment"
+        and e.last_contact_time > datetime('now', '-30 day')
         group by e.inst_id, e.os_version;
         """
         data = self.db.execute(query, dict=True)
@@ -359,14 +360,67 @@ class summary_data(object):
         # Sort & Flatten
         rows = [[inst_id] + [data[inst_id][v] for v in all_versions] for inst_id in data]
         fields = ["inst_id"] + [v for v in all_versions]
-        self.db.insert("os_versions", fields, rows, del_table=True, pk=True)
+        self.db.insert("os_versions_summary", fields, rows, del_table=True, pk=True)
+
+    def deployment_summary(self):
+        def merge_defaultdicts(d, d1):
+            for k,v in d1.items():
+                if k in d:
+                    d[k].update(d1[k])
+                else:
+                    d[k] = d1[k]
+            return d
+        # OS Versions
+        query = """
+        select e.inst_id, e.os, count(e.os)
+        from endpoints e
+        where e.os <> "No deployment"
+        and e.last_contact_time > datetime('now', '-30 day')
+        group by e.inst_id, e.os;
+        """
+        os = self.db.execute(query, dict=True)
+
+        # Sensor Families
+        query = """
+        select inst_id, substr(e.sensor_version, 0, 4) as fam, count(*)
+        from endpoints e
+        where e.os <> "No deployment"
+        and e.sensor_version <> ""
+        and e.last_contact_time > datetime('now', '-30 day')
+        group by inst_id, fam;
+        """
+        os_fam = self.db.execute(query, dict=True)
+        data = merge_defaultdicts(os, os_fam)
+
+        # Account metadata
+        query = "select inst_id, CSM, ARR, Licenses, Deployment from master;"
+        sf = self.db.execute(query)
+        sf_dict = {}
+        for r in sf:
+            sf_dict[r[0]] = {}
+            sf_dict[r[0]]["CSM"] = r[1]
+            sf_dict[r[0]]["ARR"] = r[2]
+            sf_dict[r[0]]["Licenses"] = r[3]
+            sf_dict[r[0]]["Deployment"] = r[4]
+        data = merge_defaultdicts(data, sf_dict)
+
+        # Make all inst_ids the same length
+        all_keys = list(set([k for inst_id in data for k in data[inst_id]]))
+        for k in all_keys:
+            for inst_id in data:
+                data[inst_id][k] = data[inst_id].get(k, 0)
+        # Sort & Flatten
+        rows = [[inst_id] + [data[inst_id][k] for k in all_keys] for inst_id in data]
+        fields = ["inst_id"] + all_keys
+        self.db.insert("deployment_summary", fields, rows, del_table=True)
 
 if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     report = summary_data(db)
-    #report.endpoint_lookup()
-    #report.direct_inserts()
-    #report.audit_log_inserts()
-    #report.endpoint_inserts()
-    #report.cua_brag()
+    report.endpoint_lookup()
+    report.direct_inserts()
+    report.audit_log_inserts()
+    report.endpoint_inserts()
+    report.cua_brag()
     report.os_versions()
+    report.deployment_summary()

@@ -52,17 +52,17 @@ class sqlite_db(object):
             if len(data[0]) == 4:
                 d = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
                 for r in data:
-                    d[r[0]][r[1].lower()][r[2].lower()] = r[3]
+                    d[r[0]][str(r[1]).lower()][str(r[2]).lower()] = r[3]
                 return d
             if len(data[0]) == 3:
                 d = defaultdict(lambda: defaultdict(int))
                 for r in data:
-                    d[r[0]][r[1].lower()] = r[2]
+                    d[r[0]][str(r[1]).lower()] = r[2]
                 return d
             elif len(data[0]) == 2:
                 d = defaultdict(list)
                 for r in data:
-                    d[r[0].lower()].append(r[1])
+                    d[str(r[0]).lower()].append(r[1])
                 return d
         else:
             data = [list(i) for i in cursor.fetchall()]
@@ -116,8 +116,8 @@ class sqlite_db(object):
                     query = f"UPDATE {table} SET "
                     for x, f in enumerate(fields):
                         if x == 0 : continue
-                        row[x] = row[x].replace("\"", "\'") if isinstance(row[x], str) else row[x]
-                        query += f"""{f} = "{row[x]}", """
+                        row[x] = row[x].replace("\'", "''") if isinstance(row[x], str) else row[x]
+                        query += f"""{f} = '{row[x]}', """
                     query = query[:-2]
                     query += f" where {fields[0]} = '{row[0]}';"
                     cur.execute(query)

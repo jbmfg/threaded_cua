@@ -29,6 +29,7 @@ def setup(sfdb):
     """
     return csr, custs
 
+
 if __name__ == "__main__":
     start = time.time()
     sfdb = db_connections.sf_connection()
@@ -62,7 +63,12 @@ if __name__ == "__main__":
     master_builder.endpoint_inserts()
     master_builder.cua_brag()
     master_builder.sensor_versions()
+    master_builder.os_versions()
+    master_builder.deployment_summary()
     cua = report(db, "all")
+    csms = [i[0] for i in db.execute("select distinct csm from master;")]
+    for csm in csms:
+        cua = report(db, csm)
 
 
 
