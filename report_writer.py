@@ -1,6 +1,7 @@
 import xlsxwriter
 import re
 import datetime
+import time
 
 class report(object):
     def __init__(self, db, csm):
@@ -15,7 +16,9 @@ class report(object):
         if self.csm != "all":
             query = f"select inst_id, account_name from master where csm like '{self.csm_q}' order by account_name"
             self.accounts = [[x] + i for x, i in enumerate(self.db.execute(query))]
-            for account in self.accounts:
+            printProgressBar(0, len(self.accounts))
+            for x, account in enumerate(self.accounts):
+                printProgressBar(x+1, len(self.accounts))
                 self.account_report(account)
         self.wb.close()
 
@@ -136,6 +139,15 @@ class report(object):
                 data[x][xx] = int(cell) if cell.isnumeric() else cell
         header = ["Account Name"] + [i[1] for i in self.db.execute("pragma table_info(sensor_versions_summary);")][1:]
         data.insert(0, header)
+        # Delete all columns that have no data
+        dels = []
+        for x, _ in enumerate(data[0]):
+            if x == 0: continue
+            if sum([r[x] for r in data[1:]]) == 0:
+                dels.append(x)
+        for x in dels[::-1]:
+            for row in data:
+                del row[x]
         self.writerows(sheet, data, bolder=True)
 
     def os_versions(self):
@@ -154,6 +166,15 @@ class report(object):
                 data[x][xx] = int(cell) if cell.isnumeric() else cell
         header = ["Account Name"] + [i[1] for i in self.db.execute("pragma table_info(os_versions_summary);")][1:]
         data.insert(0, header)
+                # Delete all columns that have no data
+        dels = []
+        for x, _ in enumerate(data[0]):
+            if x == 0: continue
+            if sum([r[x] for r in data[1:]]) == 0:
+                dels.append(x)
+        for x in dels[::-1]:
+            for row in data:
+                del row[x]
         self.writerows(sheet, data, bolder=True)
 
     def deployment_summary(self):
@@ -162,9 +183,10 @@ class report(object):
         cols = [i[1] for i in self.db.execute("pragma table_info(deployment_summary);")][1:]
         cols.sort()
         versions_cols = [i for i in cols if i.replace(".", "").isnumeric()]
-        os_cols = [i for i in cols if i.islower()]
+        os_cols = [i.title() for i in cols if i in ["windows", "linux", "mac"]]
+        supp_cols = [i.title() for i in cols if i in ["st", "ex", "eol"]]
         sf_cols = [i for i in cols if i.istitle() or i.isupper()]
-        header = ["Account Name", "CSM", "ARR", "Licenses", "Deployment"] + os_cols + versions_cols
+        header = ["Account Name", "CSM", "ARR", "Licenses", "Deployment"] + os_cols + supp_cols + versions_cols
         fields = ", ".join([f"ds.'{i}'" for i in header[1:]])
 
         query = f"""
@@ -182,9 +204,10 @@ class report(object):
     def account_report(self, account):
         x, inst_id, account_name = account[0], account[1], account[2]
         account_name = account_name.replace("*", "").replace("/", "")
-        sheet = self.wb.add_worksheet(f"{x}. {account_name}"[:31])
+        sheet_name = f"{x}. {account_name}"[:31]
+        sheet = self.wb.add_worksheet(sheet_name)
 
-        # Active Bypass counts
+        # Active Bypass counts by version
         query = f"""
         select
         e.sensor_version,
@@ -195,16 +218,164 @@ class report(object):
         sum(case when e.status = 'REGISTERED' then 1 else 0 end) as Active
         from endpoints e
         join sensor_lookup sl on e.sensor_version = sl.version
-        where e.last_contact_time > datetime('now', '-30 day')
-        and e.inst_id = '{inst_id}'
+        where e.inst_id = '{inst_id}'
+        and e.last_contact_time > datetime('now', '-30 day')
         group by e.sensor_version, sl.os, sl.dl_available, sl.support_level
         order by sl.os, e.sensor_version;
         """
         header = ["Version", "OS", "Available to DL", "Support Level", "Bypass", "Active"]
-        data = [header] + self.db.execute(query)
-        if data: self.writerows(sheet, data)
+        data = [header] + self.db.execute(query) + [""]
+
+        # Active Bypass
+        query = f"""
+        select
+        e.os_version,
+        sum(case when e.status = 'BYPASS' then 1 else 0 end) as Bypass,
+        sum(case when e.status = 'REGISTERED' then 1 else 0 end) as Active,
+        count(*)
+        from endpoints e
+        join sensor_lookup sl on e.sensor_version = sl.version
+        where e.inst_id = '{inst_id}'
+        and e.last_contact_time > datetime('now', '-30 day')
+        group by e.os_version, sl.dl_available, sl.support_level
+        order by e.os_version;
+        """
+        header = ["OS", "Bypass", "Active", "Total"]
+        data += [header] + self.db.execute(query) + [""]
+
+        # OS Family support levels
+        query = f"""
+        select
+        e.os,
+        sum(case when sl.support_level = "ST" then 1 else 0 end) as st,
+        sum(case when sl.support_level = "EX" then 1 else 0 end) as ex,
+        sum(case when sl.support_level = "EOL" then 1 else 0 end) as eol,
+        count(*) as total
+        from endpoints e
+        left join sensor_lookup sl on e.sensor_version = sl.version
+        where e.inst_id = '{inst_id}'
+        and e.last_contact_time > datetime('now', '-30 day')
+        group by e.os;
+        """
+        header = ["OS Family", "Standard", "Extended", "EOL", "Total"]
+        data += [header] + self.db.execute(query) + [""]
+
+        # Login, Bypass, Connector over time
+        query = f"""
+        select
+        min(nullif(event_time, ""))
+        from audit
+        where inst_id = '{inst_id}';
+        """
+        # Get the earliest event and put into list of [earliest event, now]
+        min_item = self.db.execute(query)[0][0]
+        min_max = [int(min_item) / 1000, int(time.time())] if min_item else [int(time.time()) - 604800, int(time.time())]
+        min_max = [datetime.datetime.fromtimestamp(i) for i in min_max]
+        alldays = [min_max[0] + datetime.timedelta(days=x) for x in range((min_max[1] - min_max[0]).days + 2)]
+        format_str = "%Y-%m" if (datetime.datetime.now() - min_max[0]).days >= 61 else "%Y-%m-%d"
+        counts_dict = {datetime.datetime.strftime(i, format_str): [0, 0, "No", 0] for i in alldays}
+
+        # Logins
+        query = f"""
+        select event_time
+        from audit
+        where inst_id = '{inst_id}'
+        and description like "log%in success%";
+        """
+        results = [int(i[0]) / 1000 for i in self.db.execute(query)]
+        for r in results:
+            dk = datetime.datetime.strftime(datetime.datetime.fromtimestamp(r), format_str)
+            counts_dict[dk][0] += 1
+
+        # Bypass
+        query = f"""
+        select event_time, description
+        from audit
+        where inst_id = '{inst_id}'
+        and description like '%bypass%'
+        and (description like '%enabled%' or description like '%to on %')
+        and description not like '%Action)';
+        """
+        results = [[int(i[0]) / 1000, i[1]] for i in self.db.execute(query)]
+        for r in results:
+            dk = datetime.datetime.strftime(datetime.datetime.fromtimestamp(r[0]), format_str)
+            counts_dict[dk][1] += 1
+            if "all" in r[1]:
+                counts_dict[dk][2] = "Yes"
+
+        # Connectors
+        query = f"""
+        select event_time
+        from audit
+        where inst_id = '{inst_id}'
+        and description like "%connector% log%";
+        """
+        results = [int(i[0]) / 1000 for i in self.db.execute(query)]
+        for r in results:
+            dk = datetime.datetime.strftime(datetime.datetime.fromtimestamp(r), format_str)
+            counts_dict[dk][3] += 1
+
+        # Flatten
+        header = ["Date", "Login Count", "Bypass Count", "All in Bypass", "Connector Logins"]
+        data += [header] + [[dt] + counts_dict[dt] for dt in counts_dict] + [""]
+
+        if data: self.writerows(sheet, data, bolder=True, linkBool=True)
+
+        # ############# Charts  ################ #
+        breaks = []
+        for x,r in enumerate(data):
+            if len(r) == 0:
+                breaks.append(x)
+        stacked_bar = {"type": "column", "subtype": "stacked"}
+        bar = {"type": "column"}
+        line = {"type": "line"}
+
+        sversion_chart = self.two_series_chart(sheet, sheet_name, stacked_bar, 0, breaks[0], "H2", "Sensor Version")
+        os_chart = self.two_series_chart(sheet, sheet_name, stacked_bar, breaks[0]+1, breaks[1], "S2", "OS Distribution")
+        osfam_chart = self.two_series_chart(sheet, sheet_name, stacked_bar, breaks[1]+1, breaks[2], "H21", "OS Families")
+        login_chart = self.two_series_chart(sheet, sheet_name, line, breaks[2]+1, breaks[3], "S21", "Login & Bypass Trend")
 
 
+    def two_series_chart(self, worksheet, sheetname, charttype, datastart, dataend, placement, chartname):
+        chart = self.wb.add_chart(charttype)
+        chart.add_series({
+            'name': [sheetname, datastart, 1],
+            'categories': [sheetname, datastart+1, 0, dataend-1, 0],
+            'values': [sheetname, datastart+1, 1, dataend-1, 1]
+        })
+        chart.add_series({
+            'name': [sheetname, datastart, 2],
+            'categories': [sheetname, datastart+1, 0, dataend-1, 0],
+            'values': [sheetname, datastart+1, 2, dataend-1, 2]
+        })
+        chart.set_style(2)
+        chart.set_size({'x_scale': 1.25, 'y_scale': 1.25})
+        chart.set_legend({"none": True})
+        chart.set_chartarea({'fill': {"color": "white"}})
+        chart.set_title({'name': chartname})
+        chart.set_legend({"position": "bottom"})
+        worksheet.insert_chart(placement, chart)
+
+def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '-' * (length - filledLength)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    # Print New Line on Complete
+    if iteration == total:
+        print()
 
 if __name__ == "__main__":
     from db_connections import sqlite_db

@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import datetime
 import csv
 
@@ -90,7 +91,7 @@ def get_opp_info(sfdb, inst_ids, db):
 
 def get_ds_info(inst_ids, db):
     file = "csm_review--2021-03-01.csv"
-    with open(file, "r") as f:
+    with open(file, "r", encoding="utf8") as f:
         ds = list(csv.reader(f))
         fields = ds[0]
         for x, f in enumerate(fields):

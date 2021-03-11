@@ -392,6 +392,21 @@ class summary_data(object):
         os_fam = self.db.execute(query, dict=True)
         data = merge_defaultdicts(os, os_fam)
 
+        # Sensor support level
+        query = """
+        select
+        e.inst_id,
+        sl.support_level,
+        count(*)
+        from endpoints e
+        left join sensor_lookup sl on e.sensor_version = sl.version
+        where e.sensor_version <> ""
+        and e.last_contact_time > datetime('now', '-30 day')
+        group by inst_id, sl.support_level;
+        """
+        supp_lvl = self.db.execute(query, dict=True)
+        data = merge_defaultdicts(data, supp_lvl)
+
         # Account metadata
         query = "select inst_id, CSM, ARR, Licenses, Deployment from master;"
         sf = self.db.execute(query)
