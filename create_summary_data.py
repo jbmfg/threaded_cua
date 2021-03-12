@@ -429,6 +429,36 @@ class summary_data(object):
         fields = ["inst_id"] + all_keys
         self.db.insert("deployment_summary", fields, rows, del_table=True)
 
+    def master_archive(self):
+        query = "select date() || inst_id, date(), * from master;"
+        data = self.db.execute(query)
+        fields = ["Unique_id", "Date"] + [i[1] for i in self.db.execute("pragma table_info(master);")]
+        self.db.insert("master_archive", fields, data, pk=True)
+
+    def prod_deployment_trend(self):
+        # Deployment by prod
+        query = """
+        select
+        e.sensor_version,
+        count(e.sensor_version),
+        (select count(*) from endpoints where last_contact_time > datetime('now', '-30 day') and sensor_version <> 'No deployment'),
+        round(
+            count(e.sensor_version) * 1.0 /
+            (select count(*)
+            from endpoints
+            where last_contact_time > datetime('now', '-30 day')
+            and sensor_version <> 'No deployment')  * 100, 2
+            )
+        from endpoints e
+        where e.last_contact_time > datetime('now', '-30 day')
+        and e.sensor_version <> 'No deployment'
+        group by e.sensor_version;
+        """
+
+
+
+
+
 if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     report = summary_data(db)
@@ -439,3 +469,4 @@ if __name__ == "__main__":
     report.cua_brag()
     report.os_versions()
     report.deployment_summary()
+    report.master_archive()
