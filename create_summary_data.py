@@ -5,6 +5,14 @@ class summary_data(object):
         self.db = db
         self.inst_ids = [i[0] for i in self.db.execute("select inst_id from customers;")]
 
+    def merge_dicts(self, d, d1):
+            for k,v in d1.items():
+                if k in d:
+                    d[k].update(d1[k])
+                else:
+                    d[k] = d1[k]
+            return d
+
     def endpoint_lookup(self):
         ''' Table of all versions and their current support status && availablilty'''
         query = "select distinct sensor_version, os from endpoints where sensor_version not in ('TO', 'No deployment', '') order by sensor_version;"
@@ -363,13 +371,6 @@ class summary_data(object):
         self.db.insert("os_versions_summary", fields, rows, del_table=True, pk=True)
 
     def deployment_summary(self):
-        def merge_defaultdicts(d, d1):
-            for k,v in d1.items():
-                if k in d:
-                    d[k].update(d1[k])
-                else:
-                    d[k] = d1[k]
-            return d
         # OS Versions
         query = """
         select e.inst_id, e.os, count(e.os)
@@ -390,7 +391,7 @@ class summary_data(object):
         group by inst_id, fam;
         """
         os_fam = self.db.execute(query, dict=True)
-        data = merge_defaultdicts(os, os_fam)
+        data = self.merge_dicts(os, os_fam)
 
         # Sensor support level
         query = """
@@ -405,7 +406,7 @@ class summary_data(object):
         group by inst_id, sl.support_level;
         """
         supp_lvl = self.db.execute(query, dict=True)
-        data = merge_defaultdicts(data, supp_lvl)
+        data = self.merge_dicts(data, supp_lvl)
 
         # Account metadata
         query = "select inst_id, CSM, ARR, Licenses, Deployment from master;"
@@ -417,7 +418,7 @@ class summary_data(object):
             sf_dict[r[0]]["ARR"] = r[2]
             sf_dict[r[0]]["Licenses"] = r[3]
             sf_dict[r[0]]["Deployment"] = r[4]
-        data = merge_defaultdicts(data, sf_dict)
+        data = self.merge_dicts(data, sf_dict)
 
         # Make all inst_ids the same length
         all_keys = list(set([k for inst_id in data for k in data[inst_id]]))
@@ -439,34 +440,38 @@ class summary_data(object):
         # Deployment by prod
         query = """
         select
+        sf.backend,
         e.sensor_version,
-        count(e.sensor_version),
-        (select count(*) from endpoints where last_contact_time > datetime('now', '-30 day') and sensor_version <> 'No deployment'),
-        round(
-            count(e.sensor_version) * 1.0 /
-            (select count(*)
-            from endpoints
-            where last_contact_time > datetime('now', '-30 day')
-            and sensor_version <> 'No deployment')  * 100, 2
-            )
+        count(e.sensor_version) as "Version_Count"
         from endpoints e
+        left join sf_data sf on e.inst_id = sf.inst_id
         where e.last_contact_time > datetime('now', '-30 day')
         and e.sensor_version <> 'No deployment'
-        group by e.sensor_version;
+        group by sf.backend, e.sensor_version;
         """
+        data = self.db.execute(query, dict=True)
+        date = self.db.execute("select date();")[0][0]
+        all_versions = set([v for prod in data for v in data[prod]])
 
+        # Sum up all of them
+        for v in all_versions:
+            total = sum([data[prod][v] for prod in data])
+            data["all"][v] = total
 
-
-
+        for prod in data:
+            fields = ["unique_id", "backend", "date"] + list(data[prod].keys())
+            rows = [[prod+date, prod, date] +  list(data[prod].values())]
+            self.db.insert("deployment_trend", fields, rows, update=False)
 
 if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     report = summary_data(db)
-    report.endpoint_lookup()
-    report.direct_inserts()
-    report.audit_log_inserts()
-    report.endpoint_inserts()
-    report.cua_brag()
-    report.os_versions()
-    report.deployment_summary()
-    report.master_archive()
+    #report.endpoint_lookup()
+    #report.direct_inserts()
+    #report.audit_log_inserts()
+    #report.endpoint_inserts()
+    #report.cua_brag()
+    #report.os_versions()
+    #report.deployment_summary()
+    #report.master_archive()
+    report.prod_deployment_trend()

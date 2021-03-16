@@ -90,14 +90,14 @@ def get_opp_info(sfdb, inst_ids, db):
     db.insert("sf_data", fields, data)
 
 def get_ds_info(inst_ids, db):
-    file = "csm_review--2021-03-01.csv"
-    with open(file, "r", encoding="utf8") as f:
+    file_name = "csm_review--2021-03-01.csv"
+    with open(file_name, "r", encoding="utf8") as f:
         ds = list(csv.reader(f))
         fields = ds[0]
         for x, f in enumerate(fields):
             fields[x] = f.replace(" ",  "_").replace("-", "_").replace("(", "").replace(")", "")
         data = ds[1:]
-    db.insert("data_science", fields, data)
+    db.insert("data_science", fields, data, del_table=True)
 
 def get_everything(sfdb, inst_ids):
     get_act_info(sfdb, inst_ids, db)

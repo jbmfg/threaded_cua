@@ -13,6 +13,9 @@ class report(object):
         self.sensor_versions()
         self.os_versions()
         self.deployment_summary()
+        if self.csm == "all":
+            self.deployment_trend()
+            self.deployment_trend_perc()
         if self.csm != "all":
             query = f"select inst_id, account_name from master where csm like '{self.csm_q}' order by account_name"
             self.accounts = [[x] + i for x, i in enumerate(self.db.execute(query))]
@@ -76,6 +79,22 @@ class report(object):
                 sheet.write_url(0, 6, "internal:Master!A1", string="Mastersheet")
         return True
 
+    def multi_series_chart(self, worksheet, sheetname, charttype, datastart, dataend, cols, placement, chartname, scale=1.25):
+        chart = self.wb.add_chart(charttype)
+        for x, col in enumerate(cols):
+            chart.add_series({
+                'name': [sheetname, datastart, col],
+                'categories': [sheetname, datastart+1, 0, dataend-1, 0],
+                'values': [sheetname, datastart+1, col, dataend-1, col]
+                })
+        chart.set_style(2)
+        chart.set_size({'x_scale': scale, 'y_scale': scale})
+        chart.set_legend({"none": True})
+        chart.set_chartarea({'fill': {"color": "white"}})
+        chart.set_title({'name': chartname})
+        #chart.set_legend({"position": "bottom"})
+        worksheet.insert_chart(placement, chart)
+
     def master_sheet(self):
         sheet = self.wb.add_worksheet("Master")
 
@@ -91,6 +110,7 @@ class report(object):
         fields += ["Intent___Endgame", "Intent___Sentinelone", "Intent___Microsoft_Defender_ATP", "Searching_For_Solution"]
         fields += ["Previous_Predictive_Churn_Meter", "Predictive_Churn_Meter_Changed", "Indicators_Changed", "MSSP"]
         fields += ["Account_ID", "inst_id"]
+
 
         fields_txt = ",".join(fields)
         col1url = False if self.csm_q == "%" else True
@@ -109,6 +129,11 @@ class report(object):
         header = [i.replace("___", " - ").replace("_", " ").replace("Perc", "%") for i in fields]
         data.insert(0, header)
         self.writerows(sheet, data, col1url=col1url, bolder=True)
+
+        # Want to use this order on the individual sheets too
+        self.master_order = fields
+        self.master_order_txt = fields_txt
+        self.master_header = header
 
         money = self.wb.add_format({'num_format': '$#,##0'})
         percent = self.wb.add_format({'num_format': '0.00"%"'})
@@ -201,6 +226,97 @@ class report(object):
         data.insert(0, header)
         self.writerows(sheet, data, bolder=True)
 
+    def deployment_trend(self):
+        sheet = self.wb.add_worksheet("Deployment Trend")
+        # Get the columns into the order needed for the query & xlsx header
+        cols = [i[1] for i in self.db.execute("pragma table_info(deployment_trend);")][1:]
+        text_cols = [i for i in cols if i.isalpha()][::-1]
+        version_cols = [i for i in cols if i.replace(".","").isnumeric() and i[0]=="3"]
+        version_cols.sort()
+        header = text_cols + version_cols
+        fields = ", ".join([f'"{i}"' for i in header])
+        prods = list(set([i[0] for i in self.db.execute("select backend from deployment_trend;")]))
+        prods.sort()
+        data = []
+        for prod in prods:
+            query = f"""
+            select {fields}
+            from deployment_trend
+            where backend = '{prod}';
+            """
+            data.extend([header] + self.db.execute(query) + [""])
+        data = [[int(cell) if cell and cell.isnumeric() else cell for cell in r] for r in data]
+        self.writerows(sheet, data, bolder=True)
+
+        # ############# Charts  ################ #
+        breaks = [0]
+        for x,r in enumerate(data):
+            if len(r) == 0:
+                breaks.append(x+1)
+        stacked_bar = {"type": "column", "subtype": "stacked"}
+        bar = {"type": "column"}
+        line = {"type": "line"}
+
+        row = 1
+        for x, prod in enumerate(prods):
+            if not x % 2:
+                col = "A"
+            else:
+                col = "P"
+            chart = self.multi_series_chart(
+                    sheet, "Deployment Trend", line, breaks[x], breaks[x+1] - 1,
+                    list(range(2, len(data[0]))), f"{col}{row}", f"Deployment -  {prod.title()}", scale=2.0
+                    )
+            if col == "P": row += 32
+
+    def deployment_trend_perc(self):
+        sheet = self.wb.add_worksheet("Deployment Trend Percent")
+        # Get the columns into the order needed for the query & xlsx header
+        cols = [i[1] for i in self.db.execute("pragma table_info(deployment_trend);")][1:]
+        text_cols = [i for i in cols if i.isalpha() and i != 'to'][::-1]
+        version_cols = [i for i in cols if i.replace(".","").isnumeric() and i[0]=="3"]
+        version_cols.sort()
+        header = text_cols + version_cols
+        fields = ", ".join([f'"{i}"' for i in header])
+        prods = list(set([i[0] for i in self.db.execute("select backend from deployment_trend;")]))
+        prods.sort()
+        data = []
+        for prod in prods:
+            query = f"""
+            select {fields}
+            from deployment_trend
+            where backend = '{prod}';
+            """
+            raw_numbers = self.db.execute(query)
+            for x, row in enumerate(raw_numbers):
+                total = sum([int(i) for i in row[2:] if i])
+                for xx, n in enumerate(row):
+                    raw_numbers[x][xx] = round(float(n) / total * 100, 2) if total and n and n.isnumeric() else 0
+            data.extend([header] + raw_numbers + [""])
+        data = [[cell for cell in r] for r in data]
+        self.writerows(sheet, data, bolder=True)
+
+        # ############# Charts  ################ #
+        breaks = [0]
+        for x,r in enumerate(data):
+            if len(r) == 0:
+                breaks.append(x+1)
+        stacked_bar = {"type": "column", "subtype": "stacked"}
+        bar = {"type": "column"}
+        line = {"type": "line"}
+
+        row = 1
+        for x, prod in enumerate(prods):
+            if not x % 2:
+                col = "A"
+            else:
+                col = "P"
+            chart = self.multi_series_chart(
+                    sheet, "Deployment Trend Percent", line, breaks[x], breaks[x+1] - 1,
+                    list(range(2, len(data[0]))), f"{col}{row}", f"Deployment -  {prod.title()}", scale=2.0
+                    )
+            if col == "P": row += 32
+
     def account_report(self, account):
         x, inst_id, account_name = account[0], account[1], account[2]
         account_name = account_name.replace("*", "").replace("/", "")
@@ -208,6 +324,7 @@ class report(object):
         sheet = self.wb.add_worksheet(sheet_name)
 
         # Active Bypass counts by version
+        start = time.time()
         query = f"""
         select
         e.sensor_version,
@@ -319,6 +436,21 @@ class report(object):
         header = ["Date", "Login Count", "Bypass Count", "All in Bypass", "Connector Logins"]
         data += [header] + [[dt] + counts_dict[dt] for dt in counts_dict] + [""]
 
+        # Master Trending
+        query = f"select date, {self.master_order_txt} from master_archive where inst_id like '{inst_id}' order by date"
+        results = self.db.execute(query)
+        for x, row in enumerate(results):
+            for xx, cell in enumerate(row):
+                if cell:
+                    if re.match(r"[0-9]+\.[0-9]+", cell):
+                        results[x][xx] = float(cell)
+                    elif cell.isnumeric():
+                        results[x][xx] = int(cell)
+                        if results[x][xx] > 612272122559:
+                            results[x][xx] = datetime.datetime.strftime(datetime.datetime.fromtimestamp(results[x][xx]/1000).date(), "%Y-%m-%d")
+        header = ["Date"] + [i.replace("___", " - ").replace("_", " ").replace("Perc", "%") for i in self.master_header]
+        data += [header] + results + [""]
+
         if data: self.writerows(sheet, data, bolder=True, linkBool=True)
 
         # ############# Charts  ################ #
@@ -330,31 +462,11 @@ class report(object):
         bar = {"type": "column"}
         line = {"type": "line"}
 
-        sversion_chart = self.two_series_chart(sheet, sheet_name, stacked_bar, 0, breaks[0], "H2", "Sensor Version")
-        os_chart = self.two_series_chart(sheet, sheet_name, stacked_bar, breaks[0]+1, breaks[1], "S2", "OS Distribution")
-        osfam_chart = self.two_series_chart(sheet, sheet_name, stacked_bar, breaks[1]+1, breaks[2], "H21", "OS Families")
-        login_chart = self.two_series_chart(sheet, sheet_name, line, breaks[2]+1, breaks[3], "S21", "Login & Bypass Trend")
-
-
-    def two_series_chart(self, worksheet, sheetname, charttype, datastart, dataend, placement, chartname):
-        chart = self.wb.add_chart(charttype)
-        chart.add_series({
-            'name': [sheetname, datastart, 1],
-            'categories': [sheetname, datastart+1, 0, dataend-1, 0],
-            'values': [sheetname, datastart+1, 1, dataend-1, 1]
-        })
-        chart.add_series({
-            'name': [sheetname, datastart, 2],
-            'categories': [sheetname, datastart+1, 0, dataend-1, 0],
-            'values': [sheetname, datastart+1, 2, dataend-1, 2]
-        })
-        chart.set_style(2)
-        chart.set_size({'x_scale': 1.25, 'y_scale': 1.25})
-        chart.set_legend({"none": True})
-        chart.set_chartarea({'fill': {"color": "white"}})
-        chart.set_title({'name': chartname})
-        chart.set_legend({"position": "bottom"})
-        worksheet.insert_chart(placement, chart)
+        sversion_chart = self.multi_series_chart(sheet, sheet_name, stacked_bar, 0, breaks[0], [4, 5], "H2", "Sensor Version")
+        os_chart = self.multi_series_chart(sheet, sheet_name, stacked_bar, breaks[0]+1, breaks[1], [1, 2], "S2", "OS Distribution")
+        osfam_chart = self.multi_series_chart(sheet, sheet_name, stacked_bar, breaks[1]+1, breaks[2], [1, 2, 3], "H21", "OS Families")
+        login_chart = self.multi_series_chart(sheet, sheet_name, line, breaks[2]+1, breaks[3], [1,2], "S21", "Login & Bypass Trend")
+        connector_chart = self.multi_series_chart(sheet, sheet_name, line, breaks[2]+1, breaks[3], [4], "H40", "Connector Trend")
 
 def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
     """

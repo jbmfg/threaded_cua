@@ -29,7 +29,6 @@ def setup(sfdb):
     """
     return csr, custs
 
-
 if __name__ == "__main__":
     start = time.time()
     sfdb = db_connections.sf_connection()
@@ -50,7 +49,7 @@ if __name__ == "__main__":
     print(f"Time to do opp info {time.time() - start}")
     get_sf_data.get_ds_info(inst_ids, db)
     print(f"Time to ds info {time.time() - start}")
-    csr_getter = csr_data(sfdb, db, csr, new_run=True)
+    csr_getter = csr_data(sfdb, db, csr, new_run=False)
     csr_getter.get_endpoints()
     csr_getter.get_alerts()
     csr_getter.get_audit()
@@ -65,12 +64,10 @@ if __name__ == "__main__":
     master_builder.sensor_versions()
     master_builder.os_versions()
     master_builder.deployment_summary()
+    master_builder.master_archive()
+    master_builder.prod_deployment_trend()
     cua = report(db, "all")
     csms = [i[0] for i in db.execute("select distinct csm from master;")]
     for csm in csms:
         cua = report(db, csm)
-
-
-
-
 

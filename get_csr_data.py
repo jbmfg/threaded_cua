@@ -17,7 +17,7 @@ class csr_data(object):
         self.insts = self.create_customer_table_thread()
 
     def delete_existing_tables(self):
-        del_tables = ["customers", "audit", "kits"]
+        del_tables = ["customers", "audit", "kits", "alerts", "endpoints",]
         #del_tables = []
         for t in del_tables:
             query = f"DROP TABLE IF EXISTS {t};"
@@ -44,12 +44,12 @@ class csr_data(object):
             for future in concurrent.futures.as_completed(future_to_url):
                 insert_data.append(future.result())
         fields = ["inst_id", "prod", "org_id", "org_key"]
-        self.db.insert("customers", fields, insert_data, pk=True)
+        self.db.insert("customers", fields, insert_data, pk=True, del_table=True)
 
     def get_audit(self):
         def return_audit(row, audit_item, tries=3):
             inst_id, prod, org_id = row[0], row[1], row[2]
-            print(inst_id)
+            print(f"Audit - {inst_id}")
             pd = {
                     "version": "1",
                     "fromRow": 1,
@@ -196,7 +196,7 @@ class csr_data(object):
     def get_alerts(self):
         def return_alerts(row, tries=3):
             inst_id, prod, org_key = row[0], row[1], row[2]
-            print(inst_id)
+            print(f"alerts - {inst_id}")
             pd = {
                   "terms": {
                     "rows": 10,
@@ -309,14 +309,12 @@ class csr_data(object):
                 ct += 1
                 iid = future_to_url[future]
                 print(f"just got back #{ct} - {iid}")
-                print(future.result())
                 #insert_data.extend(future.result())
                 self.db.insert("alerts", fields, future.result(), pk=False, del_table=False)
 
     def get_kits(self):
         query = "select distinct prod from customers;"
         prods = [i[0] for i in self.db.execute(query)]
-        print(prods)
         url = "/appservices/v5/orgs/1/kits/published"
         all_rows = []
         for prod in prods:

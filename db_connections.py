@@ -69,7 +69,7 @@ class sqlite_db(object):
             cursor.close()
             return data
 
-    def insert(self, table, fields, data, pk=True, del_table=False):
+    def insert(self, table, fields, data, pk=True, del_table=False, update=True):
         if del_table: self.execute(f"DROP TABLE IF EXISTS '{table}';")
 
         # Check if table exists
@@ -96,7 +96,7 @@ class sqlite_db(object):
             adds = [f for f in fields if f not in columns]
             if adds:
                 for f in adds:
-                    query = f"ALTER TABLE {table} ADD COLUMN {f} text"
+                    query = f"ALTER TABLE {table} ADD COLUMN '{f}' text"
                     self.execute(query)
 
         # Insert data into new table or update existing table
@@ -107,7 +107,7 @@ class sqlite_db(object):
         chunks = chunks(data)
         qms = ",".join("?" * len(fields))
 
-        if "adds" in locals() and adds:
+        if "adds" in locals() and adds and update:
             # if we have to add a column it means we are appending a value to the rows
             # data submitted needs to have the item at index 0 be the primary key
             for chunk in chunks:
@@ -117,7 +117,7 @@ class sqlite_db(object):
                     for x, f in enumerate(fields):
                         if x == 0 : continue
                         row[x] = row[x].replace("\'", "''") if isinstance(row[x], str) else row[x]
-                        query += f"""{f} = '{row[x]}', """
+                        query += f"'{f}' = '{row[x]}', "
                     query = query[:-2]
                     query += f" where {fields[0]} = '{row[0]}';"
                     cur.execute(query)
