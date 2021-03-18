@@ -329,6 +329,7 @@ class summary_data(object):
         left join sensor_lookup sl on e.sensor_version = sl.version
         where e.last_contact_time > datetime('now', '-30 day')
         and sensor_version <> 'No deployment'
+        and e.status in ('REGISTERED', 'BYPASS')
         group by e.inst_id, e.sensor_version, sl.os, sl.dl_available, sl.support_level;
         """
         ep_data = self.db.execute(query, dict=True)
@@ -356,6 +357,7 @@ class summary_data(object):
         from endpoints e
         where e.os_version <> "No deployment"
         and e.last_contact_time > datetime('now', '-30 day')
+        and e.status in ('REGISTERED', 'BYPASS')
         group by e.inst_id, e.os_version;
         """
         data = self.db.execute(query, dict=True)
@@ -377,6 +379,7 @@ class summary_data(object):
         from endpoints e
         where e.os <> "No deployment"
         and e.last_contact_time > datetime('now', '-30 day')
+        and e.status in ('REGISTERED', 'BYPASS')
         group by e.inst_id, e.os;
         """
         os = self.db.execute(query, dict=True)
@@ -388,6 +391,7 @@ class summary_data(object):
         where e.os <> "No deployment"
         and e.sensor_version <> ""
         and e.last_contact_time > datetime('now', '-30 day')
+        and e.status in ('REGISTERED', 'BYPASS')
         group by inst_id, fam;
         """
         os_fam = self.db.execute(query, dict=True)
@@ -403,6 +407,7 @@ class summary_data(object):
         left join sensor_lookup sl on e.sensor_version = sl.version
         where e.sensor_version <> ""
         and e.last_contact_time > datetime('now', '-30 day')
+        and e.status in ('REGISTERED', 'BYPASS')
         group by inst_id, sl.support_level;
         """
         supp_lvl = self.db.execute(query, dict=True)
@@ -447,6 +452,7 @@ class summary_data(object):
         left join sf_data sf on e.inst_id = sf.inst_id
         where e.last_contact_time > datetime('now', '-30 day')
         and e.sensor_version <> 'No deployment'
+        and e.status in ('REGISTERED', 'BYPASS')
         group by sf.backend, e.sensor_version;
         """
         data = self.db.execute(query, dict=True)
@@ -466,12 +472,12 @@ class summary_data(object):
 if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     report = summary_data(db)
-    #report.endpoint_lookup()
-    #report.direct_inserts()
-    #report.audit_log_inserts()
-    #report.endpoint_inserts()
-    #report.cua_brag()
-    #report.os_versions()
-    #report.deployment_summary()
-    #report.master_archive()
+    report.endpoint_lookup()
+    report.direct_inserts()
+    report.audit_log_inserts()
+    report.endpoint_inserts()
+    report.cua_brag()
+    report.os_versions()
+    report.deployment_summary()
+    report.master_archive()
     report.prod_deployment_trend()

@@ -90,7 +90,7 @@ def get_opp_info(sfdb, inst_ids, db):
     db.insert("sf_data", fields, data)
 
 def get_ds_info(inst_ids, db):
-    file_name = "csm_review--2021-03-01.csv"
+    file_name = "csm_review--2021-03-15.csv"
     with open(file_name, "r", encoding="utf8") as f:
         ds = list(csv.reader(f))
         fields = ds[0]
