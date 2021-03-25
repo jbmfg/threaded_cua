@@ -54,6 +54,7 @@ if __name__ == "__main__":
     csr_getter.get_alerts()
     csr_getter.get_audit()
     csr_getter.get_kits()
+    csr_getter.get_connectors()
     get_support_data(db)
     master_builder = summary_data(db)
     master_builder.endpoint_lookup()

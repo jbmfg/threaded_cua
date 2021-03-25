@@ -100,7 +100,7 @@ class report(object):
 
         fields = ["Account_Name", "CSM", "CSE", "CSM_Role", "ARR", "ACV", "Products", "Next_Renewal", "Next_Renewal_Qt"]
         fields += ["GS_Meter", "GS_Overall", "GS_Last_Updated", "CUA_BRAG", "Count_of_Violations", "Violations_Triggered"]
-        fields += ["Last_Login", "Days_Since_Login", "Last_30d_Login_Count", "Last_30d_Connector_Count", "Last_Added_User"]
+        fields += ["Last_Login", "Days_Since_Login", "Last_30d_Login_Count", "Last_30d_Connector_Count", "Integrations", "Last_Added_User"]
         fields += ["Last_Created_Policy", "Last_Modified_Policy", "Licenses", "Deployment", "Deployment_Perc", "Bypass"]
         fields += ["Bypass_Perc", "Last_30d_Bypass_Count", "Sensor_Download_Unavailable", "Download_Unavailable_Perc"]
         fields += ["Sensor_Standard_Support", "Standard_Perc", "Sensor_Extended_Support", "Extended_Perc", "Sensor_EOL_Support"]
@@ -420,7 +420,7 @@ class report(object):
             if "all" in r[1]:
                 counts_dict[dk][2] = "Yes"
 
-        # Connectors
+        # Connector Logins
         query = f"""
         select event_time
         from audit

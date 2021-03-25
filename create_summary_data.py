@@ -1,4 +1,6 @@
 import db_connections
+import re
+from collections import defaultdict
 
 class summary_data(object):
     def __init__(self, db):
@@ -92,6 +94,51 @@ class summary_data(object):
         fields += ["Intent___Endgame", "Intent___Sentinelone", "Intent___Microsoft_Defender_ATP", "Searching_For_Solution"]
         fields += ["Previous_Predictive_Churn_Meter", "Predictive_Churn_Meter_Changed", "Indicators_Changed", "MSSP"]
         self.db.insert("master", fields, data)
+
+    def connector_inserts(self):
+        ''' Mainly looking for integrations by parsing the connector names'''
+        # SIEMs/ Integrations
+        terms = [
+                "arctic.*wolf",
+                "splunk",
+                "log.*rhythm",
+                "q.*radar",
+                "z.*scaler",
+                "dmisto",
+                "rapid.*7",
+                "alien.*vault",
+                "sentinel",
+                "exabeam",
+                "phantom",
+                "axonius",
+                "xsoar",
+                "sumo",
+                "elk",
+                "elastic",
+                "arc.*sight",
+                "insight.*idr",
+                "net.*skope",
+                "trust.*wave",
+                "proof.*point",
+                "raytheon",
+                "masergy"
+                ]
+        data = self.db.execute("select inst_id, name from connectors;")
+        data_dict = defaultdict(list)
+        for r in data:
+            data_dict[r[0]].append(r[1])
+        rows = []
+        for x, inst_id in enumerate(list(data_dict)):
+            print(inst_id)
+            rows.append([inst_id])
+            for term in terms:
+                for name in data_dict[inst_id]:
+                    if re.search(term, name.lower()):
+                        rows[x].append(term.replace(".*", ""))
+        # Remove dupes and convert list of terms to a comma separated string
+        rows = [[r[0]] +  [", ".join(set(r[1:]))] for r in rows]
+        fields = ["inst_id", "Integrations"]
+        self.db.insert("master", fields, rows)
 
     def audit_log_inserts(self):
         ''' Audit log has info on logins, bypass, policy-, and user-adds'''
@@ -436,10 +483,19 @@ class summary_data(object):
         self.db.insert("deployment_summary", fields, rows, del_table=True)
 
     def master_archive(self):
+        # Check for new columns in master not in the master archive
+        m_cols = [i[1] for i in self.db.execute("pragma table_info(master)")]
+        ma_cols = [i[1] for i in self.db.execute("pragma table_info(master_archive)")]
+        new_cols = [[x, i] for x, i in enumerate(m_cols) if i not in ma_cols]
+        # Get everything from master_archive and add any new columns
+        ma = self.db.execute("select * from master_archive;")
+        for xx, i in enumerate(ma):
+            for x, col in new_cols:
+                ma[xx].insert(x+2, "")
         query = "select date() || inst_id, date(), * from master;"
-        data = self.db.execute(query)
+        data = ma + self.db.execute(query)
         fields = ["Unique_id", "Date"] + [i[1] for i in self.db.execute("pragma table_info(master);")]
-        self.db.insert("master_archive", fields, data, pk=True)
+        self.db.insert("master_archive", fields, data, del_table=True, pk=True)
 
     def prod_deployment_trend(self):
         # Deployment by prod
@@ -471,10 +527,14 @@ class summary_data(object):
 
 if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
+    db.execute("delete from deployment_trend where date like '2021-03-22';")
+    db.execute("delete from master_archive where date like '2021-03-22';")
     report = summary_data(db)
     report.endpoint_lookup()
     report.direct_inserts()
     report.audit_log_inserts()
+    report.connector_inserts()
+    input("done")
     report.endpoint_inserts()
     report.cua_brag()
     report.os_versions()

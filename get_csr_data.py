@@ -313,6 +313,7 @@ class csr_data(object):
                 self.db.insert("alerts", fields, future.result(), pk=False, del_table=False)
 
     def get_kits(self):
+        CONNECTIONS = 1
         query = "select distinct prod from customers;"
         prods = [i[0] for i in self.db.execute(query)]
         url = "/appservices/v5/orgs/1/kits/published"
@@ -327,6 +328,87 @@ class csr_data(object):
         fields = ["backend", "os", "version", "hash", "create_time", "status"]
         self.db.insert("kits", fields, all_rows, del_table=True, pk=False)
 
+    def get_connectors(self):
+        def return_connectors(row, tries=3):
+            inst_id, prod, org_id = row[0], row[1], row[2]
+            pd = {
+              "sortDefinition": {
+                "fieldName": "TIME",
+                "sortOrder": "ASC"
+              },
+              "searchWindow": "ALL",
+              "fromRow": 1,
+              "createdByLoginId": 0,
+              "maxRows": 10000,
+              "orgId": org_id
+            }
+            r = self.csr[prod].request(f"appservices/v5/orgs/{org_id}/connectors/find", pd=pd)
+            if not r:
+                return [[inst_id] + ["Failed"] * 10]
+            elif r.status_code == 200:
+                response = r.json()
+            if len(response["entries"]) == 0:
+                return [[inst_id] + [""] * 10]
+            results = []
+            for i in response["entries"]:
+                if i["connectorType"] == "SIM":
+                    if isinstance(i["notificationState"], dict):
+                        last_event = i["notificationState"]["lastSimNotificationKey"]["eventTime"]
+                    else:
+                        last_event = ""
+                elif i["connectorType"] == "API":
+                    if isinstance(i["notificationState"], dict) and isinstance(i["notificationState"]["lastAuditLogKey"], dict):
+                        last_event = i["notificationState"]["lastAuditLogKey"]["eventTime"]
+                    else:
+                        last_event = ""
+                elif i["connectorType"] == "CUSTOM":
+                    last_event = ""
+                else:
+                    last_event = ""
+                    with open("failure.txt", "a+") as f:
+                        f.write(f"{inst_id}, {response}\n")
+                last_report = i["stats"]["lastReportedTime"] if "lastReportedTime" in i["stats"] else ""
+                results.append([
+                    inst_id,
+                    i["createTime"],
+                    i["connectorId"],
+                    i["apiKey"],
+                    i["lastUpdatedTime"],
+                    i["orgId"],
+                    i["connectorType"],
+                    last_event,
+                    last_report,
+                    i["name"],
+                    i["description"]])
+            return results
+
+        query = "select distinct inst_id from connectors;"
+        already_inserted = [i[0] for i in self.db.execute(query)]
+        query = "select inst_id, prod, org_id from customers order by inst_id;"
+        data = self.db.execute(query)
+        needs = [row for row in data if row[0] not in already_inserted]
+        fields = [
+                "inst_id",
+                "create_time",
+                "connector_id",
+                "api_key",
+                "last_updated",
+                "org_id",
+                "connector_type",
+                "last_event",
+                "last_report",
+                "name",
+                "description"
+                ]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=CONNECTIONS) as executor:
+            future_to_url = {executor.submit(return_connectors, r): r[0] for r in needs}
+            ct = 0
+            for future in concurrent.futures.as_completed(future_to_url):
+                ct += 1
+                iid = future_to_url[future]
+                print(f"just got back #{ct} - {iid}")
+                self.db.insert("connectors", fields, future.result(), pk=False, del_table=False)
+
     def get_everything(self):
         pass
 
@@ -337,52 +419,9 @@ if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     csr, custs = setup(sfdb)
     print("making customer table")
-    test_run = csr_data(sfdb, db, csr, new_run=True)
-    test_run.get_endpoints()
-    test_run.get_audit()
-    test_run.get_alerts()
-    test_run.get_kits()
-    '''
-    pd = {
-                  "terms": {
-                    "rows": 10,
-                    "fields": [
-                      "ALERT_TYPE",
-                      "CATEGORY",
-                      "DEVICE_NAME",
-                      "APPLICATION_NAME",
-                      "WORKFLOW",
-                      "REPUTATION",
-                      "RUN_STATE",
-                      "POLICY_APPLIED",
-                      "SENSOR_ACTION",
-                      "POLICY_NAME",
-                      "TAG"
-                    ]
-                  },
-                  "query": "",
-                  "criteria": {
-                    "group_results": "False",
-                    "minimum_severity": "1",
-                    "target_value": [
-                      "LOW",
-                      "MEDIUM",
-                      "HIGH",
-                      "MISSION_CRITICAL"
-                    ],
-                    "category": [
-                      "THREAT"
-                    ],
-                    "workflow": [
-                      "OPEN",
-                      "DISMISSED"
-                    ],
-                    "create_time": {
-                      "range": "-4w"
-                    }
-                  }
-                }
-    r = csr["prod05"].request("appservices/v6/orgs/NKZFMGE7/alerts/_facet", pd=pd)
-    print(r.status_code)
-    print(len(r.content))
-    '''
+    test_run = csr_data(sfdb, db, csr, new_run=False)
+    #test_run.get_endpoints()
+    #test_run.get_audit()
+    #test_run.get_alerts()
+    #test_run.get_kits()
+    test_run.get_connectors()
