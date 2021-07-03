@@ -108,7 +108,6 @@ class sqlite_db(object):
         qms = ",".join("?" * len(fields))
 
         if "adds" in locals() and adds and update:
-            print("in if")
             # if we have to add a column it means we are appending a value to the rows
             # data submitted needs to have the item at index 0 be the primary key
             for chunk in chunks:

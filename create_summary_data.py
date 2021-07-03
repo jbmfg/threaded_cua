@@ -129,7 +129,6 @@ class summary_data(object):
             data_dict[r[0]].append(r[1])
         rows = []
         for x, inst_id in enumerate(list(data_dict)):
-            print(inst_id)
             rows.append([inst_id])
             for term in terms:
                 for name in data_dict[inst_id]:
@@ -483,6 +482,8 @@ class summary_data(object):
         self.db.insert("deployment_summary", fields, rows, del_table=True)
 
     def master_archive(self):
+        # Delete any entries in the master archive from today
+        self.db.execute("delete from master_archive where date = date();")
         # Check for new columns in master not in the master archive
         m_cols = [i[1] for i in self.db.execute("pragma table_info(master)")]
         ma_cols = [i[1] for i in self.db.execute("pragma table_info(master_archive)")]
@@ -495,9 +496,11 @@ class summary_data(object):
         query = "select date() || inst_id, date(), * from master;"
         data = ma + self.db.execute(query)
         fields = ["Unique_id", "Date"] + [i[1] for i in self.db.execute("pragma table_info(master);")]
-        self.db.insert("master_archive", fields, data, del_table=True, pk=True)
+        self.db.insert("master_archive", fields, data, del_table=True, pk=True, update=False)
 
     def prod_deployment_trend(self):
+        # Delete any data from today
+        self.db.execute("delete from deployment_trend where date = date();")
         # Deployment by prod
         query = """
         select
@@ -521,20 +524,18 @@ class summary_data(object):
             data["all"][v] = total
 
         for prod in data:
+            if not prod: continue
             fields = ["unique_id", "backend", "date"] + list(data[prod].keys())
             rows = [[prod+date, prod, date] +  list(data[prod].values())]
             self.db.insert("deployment_trend", fields, rows, update=False)
 
 if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
-    db.execute("delete from deployment_trend where date like '2021-03-22';")
-    db.execute("delete from master_archive where date like '2021-03-22';")
     report = summary_data(db)
     report.endpoint_lookup()
     report.direct_inserts()
     report.audit_log_inserts()
     report.connector_inserts()
-    input("done")
     report.endpoint_inserts()
     report.cua_brag()
     report.os_versions()

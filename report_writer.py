@@ -99,10 +99,10 @@ class report(object):
         sheet = self.wb.add_worksheet("Master")
 
         fields = ["Account_Name", "CSM", "CSE", "CSM_Role", "ARR", "ACV", "Products", "Next_Renewal", "Next_Renewal_Qt"]
-        fields += ["GS_Meter", "GS_Overall", "GS_Last_Updated", "CUA_BRAG", "Count_of_Violations", "Violations_Triggered"]
+        fields += ["GS_Meter", "GS_Overall", "GS_Last_Updated", "CUA_Brag", "Count_of_Violations", "Violations_Triggered"]
         fields += ["Last_Login", "Days_Since_Login", "Last_30d_Login_Count", "Last_30d_Connector_Count", "Integrations", "Last_Added_User"]
         fields += ["Last_Created_Policy", "Last_Modified_Policy", "Licenses", "Deployment", "Deployment_Perc", "Bypass"]
-        fields += ["Bypass_Perc", "Last_30d_Bypass_Count", "Sensor_Download_Unavailable", "Download_Unavailable_Perc"]
+        fields += ["Bypass_Perc", "Last_30d_Bypass_Count", "Sensor_Download_Unavailable", "Download_Unavailable_perc"]
         fields += ["Sensor_Standard_Support", "Standard_Perc", "Sensor_Extended_Support", "Extended_Perc", "Sensor_EOL_Support"]
         fields += ["EOL_Perc", "Open_Alerts", "Dismissed_Alerts", "Terminated_Alerts", "Denied_Alerts", "Allow_and_Log_Alerts"]
         fields += ["Ran_Alerts", "Not_Ran_Alerts", "Policy_Applied_Alerts", "Policy_Not_Applied_Alerts", "Prod", "OrgID"]
@@ -111,11 +111,24 @@ class report(object):
         fields += ["Previous_Predictive_Churn_Meter", "Predictive_Churn_Meter_Changed", "Indicators_Changed", "MSSP"]
         fields += ["Account_ID", "inst_id"]
 
+        # Get any new fields and remove them before getting the data (then theyll be put back in)
+        new_fields = [[x, i] for x, i in enumerate(fields) if i not in [row[1] for row in self.db.execute("pragma table_info(master);")]]
+        for idx, f in new_fields:
+            fields.remove(f)
 
         fields_txt = ",".join(fields)
         col1url = False if self.csm_q == "%" else True
         query = f"select {fields_txt} from master where CSM like '{self.csm_q}' order by Account_Name"
         data = self.db.execute(query)
+
+        # Reinsert the new fields
+        for idx, nf in new_fields:
+            fields.insert(idx, nf)
+        for row in data:
+            for idx, nf in new_fields:
+                row.insert(idx, nf)
+        fields_txt = ",".join(fields)
+
         for x, row in enumerate(data):
             for xx, cell in enumerate(row):
                 if cell:
@@ -382,7 +395,8 @@ class report(object):
         select
         min(nullif(event_time, ""))
         from audit
-        where inst_id = '{inst_id}';
+        where inst_id = '{inst_id}'
+        and event_time not like 'csr';
         """
         # Get the earliest event and put into list of [earliest event, now]
         min_item = self.db.execute(query)[0][0]
@@ -437,6 +451,13 @@ class report(object):
         data += [header] + [[dt] + counts_dict[dt] for dt in counts_dict] + [""]
 
         # Master Trending
+        # Add any new fields into the master archive
+        new_fields = [i for i in self.master_order if i not in [row[1] for row in self.db.execute("pragma table_info(master_archive);")]]
+        '''
+        input(new_fields)
+        for nf in new_fields:
+            self.db.execute(f"ALTER TABLE master_archive ADD {nf} TEXT;")
+        '''
         query = f"select date, {self.master_order_txt} from master_archive where inst_id like '{inst_id}' order by date"
         results = self.db.execute(query)
         for x, row in enumerate(results):

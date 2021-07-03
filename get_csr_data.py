@@ -20,6 +20,7 @@ class csr_data(object):
         del_tables = ["customers", "audit", "kits", "alerts", "endpoints",]
         #del_tables = []
         for t in del_tables:
+            print(t)
             query = f"DROP TABLE IF EXISTS {t};"
             self.db.execute(query)
 
