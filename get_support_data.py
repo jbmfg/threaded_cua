@@ -24,7 +24,9 @@ def get_support_data(db):
     for product in tables:
         trs = tables[product].find_all("tr")
         for tr in trs:
-            table_rows[product].append([td.get_text().replace("\n", "").replace("\u00a0", "") for td in tr.find_all("td")])
+            table_rows[product].append([td.get_text().replace("\n", "").replace("\u00a0", "").replace(" (latest)", "") for td in tr.find_all("td")])
+    import json
+    print(json.dumps(table_rows, indent=2))
 
     rows = []
     for os in table_rows:
@@ -69,9 +71,6 @@ def get_support_data(db):
 
     fields = ["os", "version", "standard", "extended", "eol", "current_level"]
     db.insert("version_support", fields, rows, pk=False, del_table=True)
-
-
-
 
 if __name__ == "__main__":
     db = sqlite_db("cua.db")
