@@ -35,13 +35,6 @@ if __name__ == "__main__":
     print(f"Time to setup connection  {time.time() - start}")
     db = db_connections.sqlite_db("cua.db")
     print(f"Time to create db {time.time() - start}")
-    # create indexes if they dont exist
-    queries = [
-            "create index if not exists audit_inst_id_idx on audit(inst_id);",
-            "create index if not exists endpoints_inst_id_idx on endpoints(inst_id);"
-            ]
-    for q in queries: db.execute(q)
-    print(f"Time to create indexes {time.time() - start}")
     csr, custs = setup(sfdb)
     print(f"Time to get initial data {time.time() - start}")
     inst_ids = [i[0] for i in custs]
@@ -81,6 +74,15 @@ if __name__ == "__main__":
     master_builder.deployment_summary()
     master_builder.master_archive()
     master_builder.prod_deployment_trend()
+
+    # create indexes if they dont exist
+    queries = [
+            "create index if not exists audit_inst_id_idx on audit(inst_id);",
+            "create index if not exists endpoints_inst_id_idx on endpoints(inst_id);",
+            "create index if not exists alert_inst_id_idx on alerts(inst_id);"
+            ]
+    for q in queries: db.execute(q)
+
     cua = report(db, "all")
     csms = [i[0] for i in db.execute("select distinct csm from master;")]
     for csm in csms:
