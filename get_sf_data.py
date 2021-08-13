@@ -7,13 +7,16 @@ def initial_insert(db, custs):
     db.insert("sf_data", fields, custs, pk=True, del_table=True)
 
 def get_act_info(sfdb, inst_ids, db):
+    print(len(inst_ids))
+    print(len(set(inst_ids)))
     query = f"""
     select i.id,
     a.name,
     a.ARR__c,
     csm.Name,
     cse.Name,
-    COALESCE(a.Customer_Success_Manager_Role__c, a.Customer_Tier__c) as Tier,
+    --COALESCE(a.Customer_Success_Manager_Role__c, a.Customer_Tier__c) as Tier,
+    a.Customer_Success_Manager_Role__c as Tier,
     GS_CSM_Meter_Score__c,
     GS_Overall_Score__c,
     Health_Scores_Updated__c,
@@ -90,7 +93,7 @@ def get_opp_info(sfdb, inst_ids, db):
     db.insert("sf_data", fields, data)
 
 def get_ds_info(inst_ids, db):
-    file_name = "csm_review--2021-06-28.csv"
+    file_name = "csm_review--2021-07-19.csv"
     with open(file_name, "r", encoding="utf8") as f:
         ds = list(csv.reader(f))
         fields = ds[0]

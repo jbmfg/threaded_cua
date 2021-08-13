@@ -352,6 +352,17 @@ class summary_data(object):
         for row in data:
             cua[row[0]].append("no policy add/mod or user add in 90d")
 
+        # Too few alerts
+        query = f"""
+        select
+        inst_id
+        from master
+        where (cast(open_alerts as real) + cast(dismissed_alerts as real)) / cast(deployment as real) < .33;
+        """
+        data = self.db.execute(query)
+        for row in data:
+            cua[row[0]].append("Alert count too low for number of endpoints")
+
         # Flatten the dict into a list, add count of violation, add cua status in one go
         def get_color(count):
             if count < 2:
