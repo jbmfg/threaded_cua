@@ -31,7 +31,8 @@ def setup(sfdb):
 
 if __name__ == "__main__":
     start = time.time()
-    sfdb = db_connections.sf_connection()
+    sfdb = db_connections.sf_connection("ods")
+    ctadb  = db_connections.sf_connection("cta")
     print(f"Time to setup connection  {time.time() - start}")
     db = db_connections.sqlite_db("cua.db")
     print(f"Time to create db {time.time() - start}")
@@ -49,6 +50,9 @@ if __name__ == "__main__":
     print(f"Time to do opp info {time.time() - start}")
     get_sf_data.get_ds_info(inst_ids, db)
     print(f"Time to ds info {time.time() - start}")
+    get_sf_data.get_cta_info(sfdb, ctadb, inst_ids, db, "Product Usage Analytics")
+    get_sf_data.get_cta_info(sfdb, ctadb, inst_ids, db, "Tech Assessment")
+    print(f"Time to cta info {time.time() - start}")
     csr_getter = csr_data(sfdb, db, csr, new_run=True)
     print("Getting Endpoints")
     csr_getter.get_endpoints()

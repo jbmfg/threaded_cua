@@ -59,8 +59,9 @@ class summary_data(object):
             products[:] = set([p.strip() for p in products])
             products = ", ".join(products)
             data[x][13] = products
-        fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "CSM_Role", "GS_Meter", "GS_Overall", "GS_Last_Updated"]
-        fields += ["Account_ID", "Licenses", "Products", "ACV", "Opportunity_Ct", "Next_Renewal", "Next_Renewal_Qt"]
+        fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "CSM_Role", "GS_Meter", "GS_Overall"]
+        fields += ["GS_Last_Updated", "Account_ID", "Licenses", "Products", "ACV", "Opportunity_Ct", "Next_Renewal", "Next_Renewal_Qt"]
+        fields += ["Last_CUA_CTA", "CUA_Status", "Last_TA"]
         self.db.insert("master", fields, data, del_table=True)
 
         # Everything in alerts table too
@@ -506,7 +507,9 @@ class summary_data(object):
                 ma[xx].insert(x+2, "")
         query = "select date() || inst_id, date(), * from master;"
         data = ma + self.db.execute(query)
+        print(len(data[0]))
         fields = ["Unique_id", "Date"] + [i[1] for i in self.db.execute("pragma table_info(master);")]
+        print(len(fields))
         self.db.insert("master_archive", fields, data, del_table=True, pk=True, update=False)
 
     def prod_deployment_trend(self):

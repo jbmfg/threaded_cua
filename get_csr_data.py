@@ -5,7 +5,7 @@ import re
 from math import ceil
 import time
 
-CONNECTIONS = 100
+CONNECTIONS = 50
 
 class csr_data(object):
     def __init__(self, sfdb, db, csr, new_run=False):
@@ -416,7 +416,7 @@ class csr_data(object):
 if __name__ == "__main__":
     import db_connections
     from frontend import setup
-    sfdb = db_connections.sf_connection()
+    sfdb = db_connections.sf_connection("ods")
     db = db_connections.sqlite_db("cua.db")
     csr, custs = setup(sfdb)
     print("making customer table")

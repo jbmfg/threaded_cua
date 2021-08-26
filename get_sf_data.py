@@ -7,8 +7,6 @@ def initial_insert(db, custs):
     db.insert("sf_data", fields, custs, pk=True, del_table=True)
 
 def get_act_info(sfdb, inst_ids, db):
-    print(len(inst_ids))
-    print(len(set(inst_ids)))
     query = f"""
     select i.id,
     a.name,
@@ -93,7 +91,7 @@ def get_opp_info(sfdb, inst_ids, db):
     db.insert("sf_data", fields, data)
 
 def get_ds_info(inst_ids, db):
-    file_name = "csm_review--2021-07-19.csv"
+    file_name = "csm_review--2021-08-16.csv"
     with open(file_name, "r", encoding="utf8") as f:
         ds = list(csv.reader(f))
         fields = ds[0]
@@ -102,13 +100,46 @@ def get_ds_info(inst_ids, db):
         data = ds[1:]
     db.insert("data_science", fields, data, del_table=True)
 
-def get_everything(sfdb, inst_ids):
-    get_act_info(sfdb, inst_ids, db)
-
+def get_cta_info(sfdb, ctadb, inst_ids, db, cta_type):
+    query = f"""
+    select a.account_ID_18_Digits__c,
+    i.id
+    from dbo.SalesforceInstallation i
+    left join dbo.SalesforceAccount a on i.Account__c = a.Account_ID_18_Digits__c
+    where i.id in ('{"','".join(inst_ids)}');
+    """
+    inst_ids_acct = sfdb.execute(query, dict=True)
+    accts = list(inst_ids_acct)
+    query = f"""
+    select AccountSFID,
+    max(createdDate) as "Last CTA Closed",
+    case when status in ('New','Work In Progress') then 'Open' else 'Closed' end as "CTA Status"
+    from dbo.CDMGainsightCTA
+    where reason like '{cta_type}'
+    and AccountSFID in ('{"','".join(accts)}')
+    group by AccountSFID, status;
+    """
+    rows = []
+    data = ctadb.execute(query)
+    for row in data:
+        for i in inst_ids_acct[row[0]]:
+            rows.append([i] + row[1:])
+    data_avail = [i[0] for i in rows]
+    for inst_id in inst_ids:
+        if inst_id not in data_avail:
+            rows.append([inst_id, "None", "None"])
+    if cta_type == "Product Usage Analytics":
+        fields = ["inst_id", "last_cua", "cua_status"]
+    elif cta_type == "Tech Assessment":
+        fields = ["inst_id", "last_ta"]
+        for x, row in enumerate(rows):
+            rows[x] = row[:-1]
+    db.insert("sf_data", fields, rows)
 
 if __name__ == "__main__":
     import db_connections
-    sfdb = db_connections.sf_connection()
+    sfdb = db_connections.sf_connection("ods")
+    ctadb = db_connections.sf_connection("cta")
     db = db_connections.sqlite_db("cua.db")
     with open("report_setup.sql", "r") as f:
         query = f.read()
@@ -119,4 +150,5 @@ if __name__ == "__main__":
     get_installation_info(sfdb, inst_ids, db)
     get_opp_info(sfdb, inst_ids, db)
     get_ds_info(inst_ids, db)
-
+    get_cta_info(sfdb, ctadb, inst_ids, db, "Product Usage Analytics")
+    get_cta_info(sfdb, ctadb, inst_ids, db, "Tech Assessment")

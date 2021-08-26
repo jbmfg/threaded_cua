@@ -99,8 +99,9 @@ class report(object):
         sheet = self.wb.add_worksheet("Master")
 
         fields = ["Account_Name", "CSM", "CSE", "CSM_Role", "ARR", "ACV", "Products", "Next_Renewal", "Next_Renewal_Qt"]
-        fields += ["GS_Meter", "GS_Overall", "GS_Last_Updated", "CUA_Brag", "Count_of_Violations", "Violations_Triggered"]
-        fields += ["Last_Login", "Days_Since_Login", "Last_30d_Login_Count", "Last_30d_Connector_Count", "Integrations", "Last_Added_User"]
+        fields += ["GS_Meter", "GS_Overall", "GS_Last_Updated", "Last_CUA_CTA", "CUA_Status", "Last_TA"]
+        fields += ["CUA_Brag", "Count_of_Violations", "Violations_Triggered", "Last_Login", "Days_Since_Login"]
+        fields += ["Last_30d_Login_Count", "Last_30d_Connector_Count", "Integrations", "Last_Added_User"]
         fields += ["Last_Created_Policy", "Last_Modified_Policy", "Licenses", "Deployment", "Deployment_Perc", "Bypass"]
         fields += ["Bypass_Perc", "Last_30d_Bypass_Count", "Sensor_Download_Unavailable", "Download_Unavailable_perc"]
         fields += ["Sensor_Standard_Support", "Standard_Perc", "Sensor_Extended_Support", "Extended_Perc", "Sensor_EOL_Support"]

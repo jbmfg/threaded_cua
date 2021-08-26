@@ -7,12 +7,16 @@ import sys
 from collections import defaultdict
 
 class sf_connection(object):
-    def __init__(self):
+    def __init__(self, db):
+        self.db = db
         with open("settings.conf", "r") as f:
             settings = json.load(f)
         server = settings["Salesforce Server"]
-        db = settings["Salesforce DB"]
-        conn_str = "DRIVER={{ODBC Driver 17 for SQL Server}};Server={};Database={};Trusted_Connection=yes;".format(server, db)
+        if self.db == "ods":
+            db = settings["ODS"]
+        elif self.db == "cta":
+            db = settings["CTA"]
+        conn_str = f"DRIVER={{ODBC Driver 17 for SQL Server}};Server={server};Database={db};Trusted_Connection=yes;"
         self.conn = pyodbc.connect(conn_str)
         self.cur = self.conn.cursor()
 
