@@ -278,101 +278,122 @@ class summary_data(object):
 
     def cua_brag(self):
         ''' Set of rules to evaluate the health of each customer based on the cua data'''
+        def rule_eval(query, name, score):
+            data = self.db.execute(query)
+            for row in data:
+                cua[row[0]][0].append(name)
+                cua[row[0]][1] += score
+
         # Get all the inst_ids & make a dict out of them
         cua = {}
         data = [i[0] for i in self.db.execute("select inst_id from master;")]
         for inst_id in data:
-            cua[inst_id] = []
+            cua[inst_id] = ["", 0]
 
         # Days since last login
+        name = "> 15 days since login"
+        score = 3
         query = "select inst_id from master where cast(Days_Since_Login as real) > 15;"
-        data = self.db.execute(query)
-        for row in data:
-            cua[row[0]].append("> 15 days since login")
+        rule_eval(query, name, score)
 
         # Days since last login
+        name = "> 500 logins last 30d"
+        score = 2
         query = "select inst_id from master where cast(Last_30d_Login_Count as real) > 500;"
-        data = self.db.execute(query)
-        for row in data:
-            cua[row[0]].append("> 500 logins last 30d")
+        rule_eval(query, name, score)
 
         # Bypass > 5%
+        name = ">5% in Bypass"
+        score = 2
         query = "select inst_id from master where cast(bypass_perc as real) >= 5.0;"
-        data = self.db.execute(query)
-        for row in data:
-            cua[row[0]].append(">5% in Bypass")
+        rule_eval(query, name, score)
 
         # Bypass > 50 endpoints
+        name = ">50 in Bypass"
+        score = 2
         query = "select inst_id from master where cast(bypass as real) >= 50;"
-        data = self.db.execute(query)
-        for row in data:
-            cua[row[0]].append(">50 in Bypass")
+        rule_eval(query, name, score)
 
         # Bypass used in last 30d > 10
+        name = "> 10 bypass use last 30d"
+        score = 2
         query = "select inst_id from master where cast(Last_30d_Bypass_Count as real) > 10;"
-        data = self.db.execute(query)
-        for row in data:
-            cua[row[0]].append("> 10 bypass use last 30d")
+        rule_eval(query, name, score)
 
         # EOL > 50 endpoints
+        name = ">50 in EOL"
+        score = 1
         query = "select inst_id from master where cast(Sensor_EOL_Support as real)>= 50;"
-        data = self.db.execute(query)
-        for row in data:
-            cua[row[0]].append(">50 in EOL")
+        rule_eval(query, name, score)
 
         # Open Alerts > 10k
+        name = ">10k alerts open"
+        score = 1
         query = "select inst_id from master where cast(Open_Alerts as real) >= 10000;"
-        data = self.db.execute(query)
-        for row in data:
-            cua[row[0]].append(">10k alerts open")
+        rule_eval(query, name, score)
 
         # > 3 alerts per endpoint
-        query = "select inst_id from master where (cast(Open_Alerts as real) + cast(Dismissed_Alerts as real)) / (cast(Deployment as real) * 1.0) >= 3.0;"
-        data = self.db.execute(query)
-        for row in data:
-            cua[row[0]].append(">=3 alerts per endpoint")
+        name = ">=3 alerts per endpoint"
+        score = 1
+        query = """
+        select inst_id
+        from master
+        where (cast(Open_Alerts as real) + cast(Dismissed_Alerts as real)) / (cast(Deployment as real) * 1.0) >= 3.0;
+        """
+        rule_eval(query, name, score)
 
         # Deployment < 75%
+        name = "Deployment < 75%"
+        score = 1
         query = "select inst_id from master where cast(Deployment_Perc as real) <= 75;"
-        data = self.db.execute(query)
-        for row in data:
-            cua[row[0]].append("Deployment < 75%")
+        rule_eval(query, name, score)
 
-        # No Policy mods or creates in 90d
         # These dates are stored in epoch(ms), 90d = 7.776e+8
         ms_ago = 90 * 24 * 60 * 60 * 1000
+
+        # No Policy mods or creates in 90d
+        name = "no policy add/mod in 90d"
+        score = 2
         query = f"""
         select
         inst_id, Last_Created_Policy
         from master
         where cast(Last_Created_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago})
-        and cast(Last_Modified_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago})
-        and cast(Last_Added_User as real) < (strftime('%s', 'now') * 1000 - {ms_ago});
+        and cast(Last_Modified_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago});
         """
-        data = self.db.execute(query)
-        for row in data:
-            cua[row[0]].append("no policy add/mod or user add in 90d")
+        rule_eval(query, name, score)
+
+        # No users added in 90d
+        name = "no user add in 90d"
+        score = 1
+        query = f"""
+        select
+        inst_id, Last_Created_Policy
+        from master
+        where cast(Last_Added_User as real) < (strftime('%s', 'now') * 1000 - {ms_ago});
+        """
+        rule_eval(query, name, score)
 
         # Too few alerts
-        query = f"""
+        name = "Alert count too low for number of endpoints"
+        score = 2
+        query = """
         select
         inst_id
         from master
         where (cast(open_alerts as real) + cast(dismissed_alerts as real)) / cast(deployment as real) < .33;
         """
-        data = self.db.execute(query)
-        for row in data:
-            cua[row[0]].append("Alert count too low for number of endpoints")
+        rule_eval(query, name, score)
 
         # Flatten the dict into a list, add count of violation, add cua status in one go
         def get_color(count):
-            if count < 2:
+            if count <= 1:
                 return "Green"
-            elif 1 < count < 4:
+            elif count <= 3:
                 return "Yellow"
             elif count >= 4:
                 return "Red"
-        data = [[inst_id, ", ".join(cua[inst_id]), len(cua[inst_id]), get_color(len(cua[inst_id]))] for inst_id in cua]
+        data = [[inst_id, ", ".join(cua[inst_id][0]), cua[inst_id][1], get_color(cua[inst_id][1])] for inst_id in cua]
 
         # Insert the whole deal
         fields = ["inst_id", "Violations_Triggered", "Count_of_Violations", "CUA_Brag"]
