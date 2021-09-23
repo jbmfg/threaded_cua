@@ -19,7 +19,8 @@ def get_act_info(sfdb, inst_ids, db):
     GS_Overall_Score__c,
     Health_Scores_Updated__c,
     a.Account_ID_18_Digits__c,
-    i.Licenses_Purchased__c
+    i.Licenses_Purchased__c,
+    a.Account__c
     from dbo.SalesforceAccount a
     inner join dbo.SalesforceInstallation i on a.Account_ID_18_Digits__c = i.Account__c
     left join dbo.SalesforceUser csm on a.Assigned_CP__c = csm.Id
@@ -28,7 +29,7 @@ def get_act_info(sfdb, inst_ids, db):
     order by a.name;
     """
     data = [[str(x) for x in sublist] for sublist in sfdb.execute(query)]
-    fields = ["inst_id", "account_name", "arr", "csm", "cse", "csm_role", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id", "licenses_purchased"]
+    fields = ["inst_id", "account_name", "arr", "csm", "cse", "csm_role", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id", "licenses_purchased", "account__c"]
     db.insert("sf_data", fields, data)
 
 def get_installation_info(sfdb, inst_ids, db):
@@ -91,7 +92,7 @@ def get_opp_info(sfdb, inst_ids, db):
     db.insert("sf_data", fields, data)
 
 def get_ds_info(inst_ids, db):
-    file_name = "csm_review--2021-08-16.csv"
+    file_name = "csm_review--2021-09-20.csv"
     with open(file_name, "r", encoding="utf8") as f:
         ds = list(csv.reader(f))
         fields = ds[0]
