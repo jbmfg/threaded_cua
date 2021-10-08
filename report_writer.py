@@ -13,6 +13,7 @@ class report(object):
         self.sensor_versions()
         self.os_versions()
         self.deployment_summary()
+        self.cse_report()
         if self.csm == "all":
             self.deployment_trend()
             self.deployment_trend_perc()
@@ -100,10 +101,11 @@ class report(object):
 
         fields = ["Account_Name", "CSM", "CSE", "CSM_Role", "ARR", "ACV", "Products", "Next_Renewal", "Next_Renewal_Qt"]
         fields += ["GS_Meter", "GS_Overall", "GS_Last_Updated", "Last_CUA_CTA", "CUA_Status", "Last_TA"]
-        fields += ["CUA_Brag", "Count_of_Violations", "Violations_Triggered", "Last_Login", "Days_Since_Login"]
+        fields += ["CUA_Brag", "Count_of_Violations", "Violations_Triggered", "brag_decrease", "Last_Login", "Days_Since_Login"]
         fields += ["Last_30d_Login_Count", "Last_30d_Connector_Count", "Integrations", "Last_Added_User"]
-        fields += ["Last_Created_Policy", "Last_Modified_Policy", "Licenses", "Deployment", "Deployment_Perc", "Bypass"]
-        fields += ["Bypass_Perc", "Last_30d_Bypass_Count", "Sensor_Download_Unavailable", "Download_Unavailable_perc"]
+        fields += ["Last_Created_Policy", "Last_Modified_Policy", "Licenses", "Deployment", "Deployment_Perc", "Last_24_contact"]
+        fields += ["Last_7d_contact", "Bypass", "Bypass_Perc", "Last_30d_Bypass_Count", "Sensor_Download_Unavailable"]
+        fields += ["Download_Unavailable_perc"]
         fields += ["Sensor_Standard_Support", "Standard_Perc", "Sensor_Extended_Support", "Extended_Perc", "Sensor_EOL_Support"]
         fields += ["EOL_Perc", "Open_Alerts", "Dismissed_Alerts", "Terminated_Alerts", "Denied_Alerts", "Allow_and_Log_Alerts"]
         fields += ["Ran_Alerts", "Not_Ran_Alerts", "Policy_Applied_Alerts", "Policy_Not_Applied_Alerts", "Prod", "OrgID"]
@@ -141,6 +143,7 @@ class report(object):
                             data[x][xx] = datetime.datetime.strftime(datetime.datetime.fromtimestamp(data[x][xx]/1000).date(), "%Y-%m-%d")
 
         header = [i.replace("___", " - ").replace("_", " ").replace("Perc", "%") for i in fields]
+        header = [i.replace("Count of Violations", "CUA Score") for i in header]
         data.insert(0, header)
         self.writerows(sheet, data, col1url=col1url, bolder=True)
 
@@ -489,6 +492,59 @@ class report(object):
         osfam_chart = self.multi_series_chart(sheet, sheet_name, stacked_bar, breaks[1]+1, breaks[2], [1, 2, 3], "H21", "OS Families")
         login_chart = self.multi_series_chart(sheet, sheet_name, line, breaks[2]+1, breaks[3], [1,2], "S21", "Login & Bypass Trend")
         connector_chart = self.multi_series_chart(sheet, sheet_name, line, breaks[2]+1, breaks[3], [4], "H40", "Connector Trend")
+
+    def write_masterlike_data(self, wb, sheet_name, data):
+        sheet = wb.add_worksheet(sheet_name)
+        header = self.master_header
+        header = [i.replace("___", " - ").replace("_", " ").replace("Perc", "%") for i in header]
+        header = [i.replace("Count of Violations", "CUA Score") for i in header]
+        data.insert(0, header)
+        money = wb.add_format({'num_format': '$#,##0'})
+        percent = wb.add_format({'num_format': '0.00"%"'})
+        for x, row in enumerate(data):
+            for xx, cell in enumerate(row):
+                if cell:
+                    if re.match(r"[0-9]+\.[0-9]+", cell):
+                        data[x][xx] = float(cell)
+                    elif cell.isnumeric():
+                        data[x][xx] = int(cell)
+                        if data[x][xx] > 612272122559:
+                            data[x][xx] = datetime.datetime.strftime(datetime.datetime.fromtimestamp(data[x][xx]/1000).date(), "%Y-%m-%d")
+        self.writerows(sheet, data, col1url=True, bolder=True)
+        money_cols, percent_cols = [], []
+        for h in header:
+            if "%" in h:
+                percent_cols.append(header.index(h))
+            elif "ARR" in h or "ACV" in h:
+                money_cols.append(header.index(h))
+            for h in money_cols:
+                sheet.write_column(1, h, [r[h] for r in data[1:]], money)
+            for h in percent_cols:
+                sheet.write_column(1, h, [r[h] for r in data[1:]], percent)
+        return sheet
+
+    def cse_report(self):
+        query = "select cse, inst_id from sf_data where cse != 'None';"
+        cse_dict = self.db.execute(query, dict=True)
+        for cse in cse_dict:
+            wb = xlsxwriter.Workbook("customer_usage_{}.xlsx".format(cse))
+
+            # Regular master
+            inst_ids_txt = "', '".join([i for i in cse_dict[cse]])
+            query = f"select {self.master_order_txt} from master where inst_id in ('{inst_ids_txt}');"
+            data = self.db.execute(query)
+            sheet = self.write_masterlike_data(wb, "Master", data)
+
+            # Reds only
+            query = f"select {self.master_order_txt} from master where inst_id in ('{inst_ids_txt}') and CUA_Brag = 'Red';"
+            data = self.db.execute(query)
+            sheet = self.write_masterlike_data(wb, "Reds", data)
+
+            # Yellows only
+            query = f"select {self.master_order_txt} from master where inst_id in ('{inst_ids_txt}') and CUA_Brag = 'Yellow';"
+            data = self.db.execute(query)
+            sheet = self.write_masterlike_data(wb, "Yellows", data)
+            wb.close()
 
 def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
     """
