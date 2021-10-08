@@ -52,7 +52,7 @@ class prod_connection(object):
                     print(f"retrying due to {e} {url}\n\n\n\n\n\n\n\n")
                     return self.request(url, pd, tries=tries)
                 else:
-                    print("returning false due to {e}\n\n\n\n\n\n\n\n")
+                    print(f"returning false due to {e}\n\n\n\n\n\n\n\n")
                     return False
             try:
                 json.dumps(r.json())

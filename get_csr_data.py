@@ -309,7 +309,7 @@ class csr_data(object):
             for future in concurrent.futures.as_completed(future_to_url):
                 ct += 1
                 iid = future_to_url[future]
-                print(f"just got back #{ct} - {iid}")
+                print(f"just got back alerts #{ct} - {iid}")
                 #insert_data.extend(future.result())
                 self.db.insert("alerts", fields, future.result(), pk=False, del_table=False)
 
