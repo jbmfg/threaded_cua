@@ -60,7 +60,7 @@ class summary_data(object):
             products = ", ".join(products)
             data[x][13] = products
         fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "CSM_Role", "GS_Meter", "GS_Overall"]
-        fields += ["GS_Last_Updated", "Account_ID", "Licenses", "Products", "ACV", "Opportunity_Ct", "Next_Renewal", "Next_Renewal_Qt"]
+        fields += ["GS_Last_Updated", "Account_ID", "Licenses", "account__c", "Products", "ACV", "Opportunity_Ct", "Next_Renewal", "Next_Renewal_Qt"]
         fields += ["Last_CUA_CTA", "CUA_Status", "Last_TA"]
         self.db.insert("master", fields, data, del_table=True)
 
@@ -232,21 +232,36 @@ class summary_data(object):
         ROUND(SUM(CASE WHEN e.status in ('REGISTERED', 'BYPASS') THEN 1 ELSE 0 END) * 1.0 / sf.licenses_purchased * 100, 2)
         from endpoints e
         left join sf_data sf on e.inst_id = sf.inst_id
-        where e.last_contact_time > datetime('now', '-30 day')
+        where e.last_contact_time >= (select max(date(last_contact_time, '-30 days')) from endpoints)
         group by e.inst_id;
         """
         data = self.db.execute(query)
         fields = ["inst_id", "Deployment", "Deployment_Perc"]
         self.db.insert("master", fields, data)
 
+        # Deployed, last 24 hours
+        query = """
+        select e.inst_id,
+        SUM(CASE WHEN e.status in ('REGISTERED', 'BYPASS') and e.last_contact_time >= (select max(date(last_contact_time, '-1 days')) from endpoints) THEN 1 ELSE 0 END),
+        SUM(CASE WHEN e.status in ('REGISTERED', 'BYPASS') and e.last_contact_time >= (select max(date(last_contact_time, '-7 days')) from endpoints) THEN 1 ELSE 0 END)
+        from endpoints e
+        group by e.inst_id;
+        """
+        data = self.db.execute(query)
+        fields = ["inst_id", "Last_24_contact", "Last_7d_contact"]
+        self.db.insert("master", fields, data)
+
         # Bypass counts
         query = """
         select e.inst_id,
-        SUM(CASE when e.status like 'BYPASS' THEN 1 ELSE 0 END),
-        round(SUM(CASE when e.status like 'BYPASS' THEN 1 ELSE 0 END) * 1.0 / sf.licenses_purchased * 100, 2)
+        SUM(CASE when e.status like 'BYPASS' THEN 1 ELSE 0 END) ,
+        round(
+            SUM(CASE when e.status like 'BYPASS' THEN 1 ELSE 0 END) * 1.0 /
+            SUM(CASE WHEN e.status in ('REGISTERED', 'BYPASS') THEN 1 ELSE 0 END)
+        * 100,
+        2)
         from endpoints e
-        left join sf_data sf on e.inst_id = sf.inst_id
-        where e.last_contact_time > datetime('now', '-30 day')
+        where e.last_contact_time >= (select max(date(last_contact_time, '-30 days')) from endpoints)
         group by e.inst_id;
         """
         data = self.db.execute(query)
@@ -267,7 +282,7 @@ class summary_data(object):
         round(SUM(CASE sl.dl_available WHEN "False" THEN 1 ELSE 0 END) * 1.0 / count(e.sensor_version) * 100, 2)
         from endpoints e
         left join sensor_lookup sl on e.sensor_version = sl.version
-        where e.last_contact_time > datetime('now', '-30 day')
+        where e.last_contact_time >= (select max(date(last_contact_time, '-30 days')) from endpoints)
         and e.status in ('REGISTERED', 'BYPASS')
         group by e.inst_id;
         """
@@ -288,53 +303,79 @@ class summary_data(object):
         cua = {}
         data = [i[0] for i in self.db.execute("select inst_id from master;")]
         for inst_id in data:
-            cua[inst_id] = ["", 0]
+            cua[inst_id] = [[], 0]
 
         # Days since last login
+        name = "> 7 days since login"
+        score = 1
+        query = "select inst_id from master where cast(Days_Since_Login as real) > 7;"
+        rule_eval(query, name, score)
+
         name = "> 15 days since login"
-        score = 3
+        score = 2
         query = "select inst_id from master where cast(Days_Since_Login as real) > 15;"
         rule_eval(query, name, score)
 
-        # Days since last login
-        name = "> 500 logins last 30d"
+        name = "> 15 days since login"
         score = 2
-        query = "select inst_id from master where cast(Last_30d_Login_Count as real) > 500;"
+        query = "select inst_id from master where cast(Days_Since_Login as real) > 30;"
         rule_eval(query, name, score)
 
-        # Bypass > 5%
+        # Bypass Use
         name = ">5% in Bypass"
         score = 2
         query = "select inst_id from master where cast(bypass_perc as real) >= 5.0;"
         rule_eval(query, name, score)
 
-        # Bypass > 50 endpoints
+        name = ">10% in Bypass"
+        score = 3
+        query = "select inst_id from master where cast(bypass_perc as real) >= 10.0;"
+        rule_eval(query, name, score)
+
+        name = ">20% in Bypass"
+        score = 4
+        query = "select inst_id from master where cast(bypass_perc as real) >= 20.0;"
+        rule_eval(query, name, score)
+
+        name = ">25 in Bypass"
+        score = 1
+        query = "select inst_id from master where cast(bypass as real) >= 25;"
+        rule_eval(query, name, score)
+
         name = ">50 in Bypass"
-        score = 2
+        score = 1
         query = "select inst_id from master where cast(bypass as real) >= 50;"
         rule_eval(query, name, score)
 
-        # Bypass used in last 30d > 10
         name = "> 10 bypass use last 30d"
         score = 2
         query = "select inst_id from master where cast(Last_30d_Bypass_Count as real) > 10;"
         rule_eval(query, name, score)
 
-        # EOL > 50 endpoints
+        # EOL Sensors
         name = ">50 in EOL"
         score = 1
         query = "select inst_id from master where cast(Sensor_EOL_Support as real)>= 50;"
         rule_eval(query, name, score)
 
-        # Open Alerts > 10k
+        name = ">10% in EOL"
+        score = 1
+        query = "select inst_id from master where cast(eol_perc as real) >= 10.0;"
+        rule_eval(query, name, score)
+
+        name = ">25% in EOL"
+        score = 2
+        query = "select inst_id from master where cast(eol_perc as real) >= 25.0;"
+        rule_eval(query, name, score)
+
+        # Alerts
         name = ">10k alerts open"
         score = 1
         query = "select inst_id from master where cast(Open_Alerts as real) >= 10000;"
         rule_eval(query, name, score)
 
-        # > 3 alerts per endpoint
         name = ">=3 alerts per endpoint"
-        score = 1
+        score = 2
         query = """
         select inst_id
         from master
@@ -342,39 +383,6 @@ class summary_data(object):
         """
         rule_eval(query, name, score)
 
-        # Deployment < 75%
-        name = "Deployment < 75%"
-        score = 1
-        query = "select inst_id from master where cast(Deployment_Perc as real) <= 75;"
-        rule_eval(query, name, score)
-
-        # These dates are stored in epoch(ms), 90d = 7.776e+8
-        ms_ago = 90 * 24 * 60 * 60 * 1000
-
-        # No Policy mods or creates in 90d
-        name = "no policy add/mod in 90d"
-        score = 2
-        query = f"""
-        select
-        inst_id, Last_Created_Policy
-        from master
-        where cast(Last_Created_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago})
-        and cast(Last_Modified_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago});
-        """
-        rule_eval(query, name, score)
-
-        # No users added in 90d
-        name = "no user add in 90d"
-        score = 1
-        query = f"""
-        select
-        inst_id, Last_Created_Policy
-        from master
-        where cast(Last_Added_User as real) < (strftime('%s', 'now') * 1000 - {ms_ago});
-        """
-        rule_eval(query, name, score)
-
-        # Too few alerts
         name = "Alert count too low for number of endpoints"
         score = 2
         query = """
@@ -385,18 +393,96 @@ class summary_data(object):
         """
         rule_eval(query, name, score)
 
+        # Deployment
+        name = "Deployment < 50%"
+        score = 2
+        query = "select inst_id from master where cast(Deployment_Perc as real) <= 50;"
+        rule_eval(query, name, score)
+
+        name = "Deployment < 75%"
+        score = 1
+        query = "select inst_id from master where cast(Deployment_Perc as real) <= 75;"
+        rule_eval(query, name, score)
+
+        # Policy changes
+        # These dates are stored in epoch(ms), 90d = 7.776e+8
+        ms_ago_90d = 90 * 24 * 60 * 60 * 1000
+        ms_ago_180d = 180 * 24 * 60 * 60 * 1000
+
+        name = "no policy add/mod in 90d"
+        score = 1
+        query = f"""
+        select
+        inst_id
+        from master
+        where cast(Last_Created_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago_90d})
+        and cast(Last_Modified_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago_90d});
+        """
+        rule_eval(query, name, score)
+
+        name = "no policy add/mod in 180d"
+        score = 1
+        query = f"""
+        select
+        inst_id
+        from master
+        where cast(Last_Created_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago_180d})
+        and cast(Last_Modified_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago_180d});
+        """
+        rule_eval(query, name, score)
+
+        # Users
+        name = "no user add in 90d"
+        score = 1
+        query = f"""
+        select
+        inst_id
+        from master
+        where cast(Last_Added_User as real) < (strftime('%s', 'now') * 1000 - {ms_ago_90d});
+        """
+        rule_eval(query, name, score)
+
+        # DS
+        name = "DS evaluates to red"
+        score = 1
+        query = """
+        select m.inst_id
+        from master m
+        left join data_science ds on m.Account_ID = ds.AccountSFID
+        where ds.Predictive_Churn_Meter = 'Red';
+        """
+        rule_eval(query, name, score)
+
+
         # Flatten the dict into a list, add count of violation, add cua status in one go
         def get_color(count):
-            if count <= 1:
+            if count <= 3:
                 return "Green"
-            elif count <= 3:
+            elif count <= 9:
                 return "Yellow"
-            elif count >= 4:
+            elif count >= 10:
                 return "Red"
         data = [[inst_id, ", ".join(cua[inst_id][0]), cua[inst_id][1], get_color(cua[inst_id][1])] for inst_id in cua]
 
         # Insert the whole deal
         fields = ["inst_id", "Violations_Triggered", "Count_of_Violations", "CUA_Brag"]
+        self.db.insert("master", fields, data)
+
+    def changes_over_time(self):
+        ''' Look for things in our own evalutaion that should be flagged '''
+        # BRAG change for the worse
+        query = """
+        select m.inst_id,
+        case when m.cua_brag in ('Yellow', 'Red') and ma.cua_brag like 'green' then 'True'
+        when m.cua_brag like 'Red' and ma.cua_brag like 'yellow' then 'True'
+        else 'False' end as "decresing_cua"
+        from master m
+        join master_archive ma on m.inst_id = ma.inst_id
+        and ma.date = (select max(date) from master_archive)
+        group by m.inst_id;
+        """
+        fields = ["inst_id", "brag_decrease"]
+        data = self.db.execute(query)
         self.db.insert("master", fields, data)
 
     def sensor_versions(self):
@@ -406,7 +492,7 @@ class summary_data(object):
         e.sensor_version || " (" || sl.os || ") " || "(" || sl.dl_available || ") " || "("  || sl.support_level || ")", count(e.sensor_version)
         from endpoints e
         left join sensor_lookup sl on e.sensor_version = sl.version
-        where e.last_contact_time > datetime('now', '-30 day')
+        where e.last_contact_time >= (select max(date(last_contact_time, '-30 days')) from endpoints)
         and sensor_version <> 'No deployment'
         and e.status in ('REGISTERED', 'BYPASS')
         group by e.inst_id, e.sensor_version, sl.os, sl.dl_available, sl.support_level;
@@ -435,7 +521,7 @@ class summary_data(object):
         select e.inst_id, e.os_version, count(e.os_version)
         from endpoints e
         where e.os_version <> "No deployment"
-        and e.last_contact_time > datetime('now', '-30 day')
+        and e.last_contact_time >= (select max(date(last_contact_time, '-30 days')) from endpoints)
         and e.status in ('REGISTERED', 'BYPASS')
         group by e.inst_id, e.os_version;
         """
@@ -457,7 +543,7 @@ class summary_data(object):
         select e.inst_id, e.os, count(e.os)
         from endpoints e
         where e.os <> "No deployment"
-        and e.last_contact_time > datetime('now', '-30 day')
+        and e.last_contact_time >= (select max(date(last_contact_time, '-30 days')) from endpoints)
         and e.status in ('REGISTERED', 'BYPASS')
         group by e.inst_id, e.os;
         """
@@ -469,7 +555,7 @@ class summary_data(object):
         from endpoints e
         where e.os <> "No deployment"
         and e.sensor_version <> ""
-        and e.last_contact_time > datetime('now', '-30 day')
+        and e.last_contact_time >= (select max(date(last_contact_time, '-30 days')) from endpoints)
         and e.status in ('REGISTERED', 'BYPASS')
         group by inst_id, fam;
         """
@@ -485,7 +571,7 @@ class summary_data(object):
         from endpoints e
         left join sensor_lookup sl on e.sensor_version = sl.version
         where e.sensor_version <> ""
-        and e.last_contact_time > datetime('now', '-30 day')
+        and e.last_contact_time >= (select max(date(last_contact_time, '-30 days')) from endpoints)
         and e.status in ('REGISTERED', 'BYPASS')
         group by inst_id, sl.support_level;
         """
@@ -528,9 +614,7 @@ class summary_data(object):
                 ma[xx].insert(x+2, "")
         query = "select date() || inst_id, date(), * from master;"
         data = ma + self.db.execute(query)
-        print(len(data[0]))
         fields = ["Unique_id", "Date"] + [i[1] for i in self.db.execute("pragma table_info(master);")]
-        print(len(fields))
         self.db.insert("master_archive", fields, data, del_table=True, pk=True, update=False)
 
     def prod_deployment_trend(self):
@@ -544,7 +628,7 @@ class summary_data(object):
         count(e.sensor_version) as "Version_Count"
         from endpoints e
         left join sf_data sf on e.inst_id = sf.inst_id
-        where e.last_contact_time > datetime('now', '-30 day')
+        where e.last_contact_time >= (select max(date(last_contact_time, '-30 days')) from endpoints)
         and e.sensor_version <> 'No deployment'
         and e.status in ('REGISTERED', 'BYPASS')
         group by sf.backend, e.sensor_version;
@@ -567,13 +651,27 @@ class summary_data(object):
 if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     report = summary_data(db)
+    print("lookup")
     report.endpoint_lookup()
+    print("directs")
     report.direct_inserts()
+    print("audit logs")
     report.audit_log_inserts()
+    print("connectors")
     report.connector_inserts()
+    print("endpoints")
     report.endpoint_inserts()
+    print("brag")
     report.cua_brag()
+    print("sensor versions")
+    report.sensor_versions()
+    print("os versions")
     report.os_versions()
+    print("deployment")
     report.deployment_summary()
+    print("changes")
+    report.changes_over_time()
+    print("archive")
     report.master_archive()
+    print("deployment trend")
     report.prod_deployment_trend()
