@@ -123,7 +123,9 @@ class csr_data(object):
                     return [[inst_id] + ["No deployment"] * 11]
                 results = [
                         [inst_id,
+                        i["id"],
                         i["sensor_version"],
+                        i["deployment_type"],
                         i["os_version"],
                         i["organization_name"],
                         i["status"],
@@ -148,7 +150,9 @@ class csr_data(object):
                         elif r.status_code == 200:
                             results += [
                                     [inst_id,
+                                    i["id"],
                                     i["sensor_version"],
+                                    i["deployment_type"],
                                     i["os_version"],
                                     i["organization_name"],
                                     i["status"],
@@ -170,7 +174,9 @@ class csr_data(object):
         needs = [row for row in data if row[0] not in already_inserted]
         fields = [
                 "inst_id",
+                "id",
                 "sensor_version",
+                "deployment_type",
                 "os_version",
                 "org_name",
                 "status",
