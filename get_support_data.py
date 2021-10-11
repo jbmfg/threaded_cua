@@ -25,8 +25,6 @@ def get_support_data(db):
         trs = tables[product].find_all("tr")
         for tr in trs:
             table_rows[product].append([td.get_text().replace("\n", "").replace("\u00a0", "").replace(" (latest)", "") for td in tr.find_all("td")])
-    import json
-    print(json.dumps(table_rows, indent=2))
 
     rows = []
     for os in table_rows:
