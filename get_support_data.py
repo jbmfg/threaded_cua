@@ -33,9 +33,10 @@ def get_support_data(db):
 
     for x, r in enumerate(rows):
         for d in r[2:]:
+            if d.strip() == "TBD": continue
             if not d: continue
             try:
-                rows[x][r.index(d)] = datetime.datetime.strptime(d.strip(), "%b-%y")
+                rows[x][r.index(d)] = datetime.datetime.strptime(d.strip().replace("Sept", "Sep"), "%b-%y")
             except ValueError:
                 try:
                     rows[x][r.index(d)] = datetime.datetime.strptime(d, "%B-%y")
