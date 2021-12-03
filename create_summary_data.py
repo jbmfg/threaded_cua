@@ -17,7 +17,13 @@ class summary_data(object):
 
     def endpoint_lookup(self):
         ''' Table of all versions and their current support status && availablilty'''
-        query = "select distinct sensor_version, os from endpoints where sensor_version not in ('TO', 'No deployment', '') order by sensor_version;"
+        query = """
+        select distinct sensor_version,
+        os
+        from endpoints
+        where sensor_version not in ('TO', 'No deployment', '')
+        order by sensor_version;
+        """
         all_versions = self.db.execute(query)
 
         # Available for download
@@ -33,6 +39,10 @@ class summary_data(object):
 
         # Support level
         lookup = self.db.execute("select os, version, current_level from version_support;", dict=True)
+        for os in list(lookup):
+            for v in list(lookup[os]):
+                if ".x" in v:
+                    lookup[os][v.replace(".x", "")] = lookup[os].pop(v)
         def eolife(os, v):
             while len(v) > 0:
                 if v[:-1] in lookup[os]:
@@ -60,8 +70,9 @@ class summary_data(object):
             products = ", ".join(products)
             data[x][13] = products
         fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "CSM_Role", "GS_Meter", "GS_Overall"]
-        fields += ["GS_Last_Updated", "Account_ID", "Licenses", "account__c", "Products", "ACV", "Opportunity_Ct", "Next_Renewal", "Next_Renewal_Qt"]
-        fields += ["Last_CUA_CTA", "CUA_Status", "Last_TA"]
+        fields += ["GS_Last_Updated", "Account_ID", "Licenses", "account__c", "Products", "ACV", "Opportunity_Ct"]
+        fields += ["Next_Renewal", "Next_Renewal_Qt", "total_cases_30d", "cbc_cases_30d", "open_cases", "open_cbc_cases"]
+        fields += ["Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
         self.db.insert("master", fields, data, del_table=True)
 
         # Everything in alerts table too
@@ -168,11 +179,16 @@ class summary_data(object):
         self.db.insert("master", fields, data)
 
         # Connector login counts
-        query = """
+        query = "select max(event_time) from audit;"
+        max_time = int(self.db.execute(query)[0][0])
+        # 30 days before the max
+        diff = max_time - 30 * 24 * 60 * 60 * 1000
+
+        query = f"""
         select inst_id,
         SUM(CASE WHEN description like 'Connector % logged in successfully' THEN 1 ELSE 0 END)
         from audit
-        where datetime(event_time /1000, 'unixepoch') > datetime('now', '-30 day')
+        where event_time >= {diff}
         group by inst_id;
         """
         data = self.db.execute(query)
@@ -239,12 +255,27 @@ class summary_data(object):
         fields = ["inst_id", "Deployment", "Deployment_Perc"]
         self.db.insert("master", fields, data)
 
-        # Deployed, last 24 hours
+        # Workloads deployed
+        query = """
+        select e.inst_id,
+        count(*)
+        from endpoints e
+        where e.last_contact_time >= (select max(date(last_contact_time, '-30 days')) from endpoints)
+        and e.status in ('REGISTERED', 'BYPASS')
+        and deployment_type = 'WORKLOAD'
+        group by e.inst_id;
+        """
+        data = self.db.execute(query)
+        fields = ["inst_id", "Workload_Deployment"]
+        self.db.insert("master", fields, data)
+
+        # Deployed, last 24 hours and 7 days
         query = """
         select e.inst_id,
         SUM(CASE WHEN e.status in ('REGISTERED', 'BYPASS') and e.last_contact_time >= (select max(date(last_contact_time, '-1 days')) from endpoints) THEN 1 ELSE 0 END),
         SUM(CASE WHEN e.status in ('REGISTERED', 'BYPASS') and e.last_contact_time >= (select max(date(last_contact_time, '-7 days')) from endpoints) THEN 1 ELSE 0 END)
         from endpoints e
+        where deployment_type != 'WORKLOAD'
         group by e.inst_id;
         """
         data = self.db.execute(query)
@@ -291,7 +322,7 @@ class summary_data(object):
         fields += ["Sensor_EOL_Support", "EOL_Perc", "Sensor_Download_Unavailable", "Download_Unavailable_perc"]
         self.db.insert("master", fields, data)
 
-    def cua_brag(self):
+    def cua_brag(self, table):
         ''' Set of rules to evaluate the health of each customer based on the cua data'''
         def rule_eval(query, name, score):
             data = self.db.execute(query)
@@ -299,96 +330,100 @@ class summary_data(object):
                 cua[row[0]][0].append(name)
                 cua[row[0]][1] += score
 
-        # Get all the inst_ids & make a dict out of them
+        # Get all the primary keys & make a dict out of them
+        if table == "master":
+            pk = "inst_id"
+        elif table == "account_master":
+            pk = "Account_Name"
         cua = {}
-        data = [i[0] for i in self.db.execute("select inst_id from master;")]
+        data = [i[0] for i in self.db.execute(f"select {pk} from {table};")]
         for inst_id in data:
             cua[inst_id] = [[], 0]
 
         # Days since last login
         name = "> 7 days since login"
         score = 1
-        query = "select inst_id from master where cast(Days_Since_Login as real) > 7;"
+        query = f"select {pk} from {table} where cast(Days_Since_Login as real) > 7;"
         rule_eval(query, name, score)
 
         name = "> 15 days since login"
         score = 2
-        query = "select inst_id from master where cast(Days_Since_Login as real) > 15;"
+        query = f"select {pk} from {table} where cast(Days_Since_Login as real) > 15;"
         rule_eval(query, name, score)
 
         name = "> 15 days since login"
         score = 2
-        query = "select inst_id from master where cast(Days_Since_Login as real) > 30;"
+        query = f"select {pk} from {table} where cast(Days_Since_Login as real) > 30;"
         rule_eval(query, name, score)
 
         # Bypass Use
         name = ">5% in Bypass"
         score = 2
-        query = "select inst_id from master where cast(bypass_perc as real) >= 5.0;"
+        query = f"select {pk} from {table} where cast(bypass_perc as real) >= 5.0;"
         rule_eval(query, name, score)
 
         name = ">10% in Bypass"
         score = 3
-        query = "select inst_id from master where cast(bypass_perc as real) >= 10.0;"
+        query = f"select {pk} from {table} where cast(bypass_perc as real) >= 10.0;"
         rule_eval(query, name, score)
 
         name = ">20% in Bypass"
         score = 4
-        query = "select inst_id from master where cast(bypass_perc as real) >= 20.0;"
+        query = f"select {pk} from {table} where cast(bypass_perc as real) >= 20.0;"
         rule_eval(query, name, score)
 
         name = ">25 in Bypass"
         score = 1
-        query = "select inst_id from master where cast(bypass as real) >= 25;"
+        query = f"select {pk} from {table} where cast(bypass as real) >= 25;"
         rule_eval(query, name, score)
 
         name = ">50 in Bypass"
         score = 1
-        query = "select inst_id from master where cast(bypass as real) >= 50;"
+        query = f"select {pk} from {table} where cast(bypass as real) >= 50;"
         rule_eval(query, name, score)
 
         name = "> 10 bypass use last 30d"
         score = 2
-        query = "select inst_id from master where cast(Last_30d_Bypass_Count as real) > 10;"
+        query = f"select {pk} from {table} where cast(Last_30d_Bypass_Count as real) > 10;"
         rule_eval(query, name, score)
 
         # EOL Sensors
         name = ">50 in EOL"
         score = 1
-        query = "select inst_id from master where cast(Sensor_EOL_Support as real)>= 50;"
+        query = f"select {pk} from {table} where cast(Sensor_EOL_Support as real)>= 50;"
         rule_eval(query, name, score)
 
         name = ">10% in EOL"
         score = 1
-        query = "select inst_id from master where cast(eol_perc as real) >= 10.0;"
+        query = f"select {pk} from {table} where cast(eol_perc as real) >= 10.0;"
         rule_eval(query, name, score)
 
         name = ">25% in EOL"
         score = 2
-        query = "select inst_id from master where cast(eol_perc as real) >= 25.0;"
+        query = f"select {pk} from {table} where cast(eol_perc as real) >= 25.0;"
         rule_eval(query, name, score)
 
         # Alerts
         name = ">10k alerts open"
         score = 1
-        query = "select inst_id from master where cast(Open_Alerts as real) >= 10000;"
+        query = f"select {pk} from {table} where cast(Open_Alerts as real) >= 10000;"
         rule_eval(query, name, score)
 
         name = ">=3 alerts per endpoint"
         score = 2
-        query = """
-        select inst_id
-        from master
+        query = f"""
+        select {pk}
+        from {table}
         where (cast(Open_Alerts as real) + cast(Dismissed_Alerts as real)) / (cast(Deployment as real) * 1.0) >= 3.0;
         """
         rule_eval(query, name, score)
 
         name = "Alert count too low for number of endpoints"
         score = 2
-        query = """
+        query = f"""
         select
-        inst_id
-        from master
+        {pk}
+        from {table}
         where (cast(open_alerts as real) + cast(dismissed_alerts as real)) / cast(deployment as real) < .33;
         """
         rule_eval(query, name, score)
@@ -396,12 +431,12 @@ class summary_data(object):
         # Deployment
         name = "Deployment < 50%"
         score = 2
-        query = "select inst_id from master where cast(Deployment_Perc as real) <= 50;"
+        query = f"select {pk} from {table} where cast(Deployment_Perc as real) <= 50;"
         rule_eval(query, name, score)
 
         name = "Deployment < 75%"
         score = 1
-        query = "select inst_id from master where cast(Deployment_Perc as real) <= 75;"
+        query = f"select {pk} from {table} where cast(Deployment_Perc as real) <= 75;"
         rule_eval(query, name, score)
 
         # Policy changes
@@ -413,8 +448,8 @@ class summary_data(object):
         score = 1
         query = f"""
         select
-        inst_id
-        from master
+        {pk}
+        from {table}
         where cast(Last_Created_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago_90d})
         and cast(Last_Modified_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago_90d});
         """
@@ -424,8 +459,8 @@ class summary_data(object):
         score = 1
         query = f"""
         select
-        inst_id
-        from master
+        {pk}
+        from {table}
         where cast(Last_Created_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago_180d})
         and cast(Last_Modified_Policy as real) < (strftime('%s', 'now') * 1000 - {ms_ago_180d});
         """
@@ -436,23 +471,35 @@ class summary_data(object):
         score = 1
         query = f"""
         select
-        inst_id
-        from master
+        {pk}
+        from {table}
         where cast(Last_Added_User as real) < (strftime('%s', 'now') * 1000 - {ms_ago_90d});
         """
         rule_eval(query, name, score)
 
         # DS
+        '''
         name = "DS evaluates to red"
         score = 1
-        query = """
-        select m.inst_id
-        from master m
+        query = f"""
+        select m.{pk}
+        from {table} m
         left join data_science ds on m.Account_ID = ds.AccountSFID
         where ds.Predictive_Churn_Meter = 'Red';
         """
         rule_eval(query, name, score)
+        '''
 
+        # Deployment swings
+        name = ">10% in deployment counts"
+        score = 3
+        query = f"""
+        select m.{pk},
+        cast(m.deployment_perc as real) - cast(ma.deployment_perc as real)
+        from {table} m
+        left join {table}_archive ma on m.inst_id = ma.inst_id
+        where ma.date = (select max(date) from {table}_archive);
+        """
 
         # Flatten the dict into a list, add count of violation, add cua status in one go
         def get_color(count):
@@ -465,25 +512,29 @@ class summary_data(object):
         data = [[inst_id, ", ".join(cua[inst_id][0]), cua[inst_id][1], get_color(cua[inst_id][1])] for inst_id in cua]
 
         # Insert the whole deal
-        fields = ["inst_id", "Violations_Triggered", "Count_of_Violations", "CUA_Brag"]
-        self.db.insert("master", fields, data)
+        fields = [pk, "Violations_Triggered", "Count_of_Violations", "CUA_Brag"]
+        self.db.insert(f"{table}", fields, data)
 
-    def changes_over_time(self):
+    def changes_over_time(self, table):
         ''' Look for things in our own evalutaion that should be flagged '''
-        # BRAG change for the worse
-        query = """
-        select m.inst_id,
-        case when m.cua_brag in ('Yellow', 'Red') and ma.cua_brag like 'green' then 'True'
-        when m.cua_brag like 'Red' and ma.cua_brag like 'yellow' then 'True'
-        else 'False' end as "decresing_cua"
-        from master m
-        join master_archive ma on m.inst_id = ma.inst_id
-        and ma.date = (select max(date) from master_archive)
-        group by m.inst_id;
-        """
-        fields = ["inst_id", "brag_decrease"]
+        if table == "account_master":
+            pk = "Account_Name"
+            query = "select account_name, 'NA' from account_master;"
+        elif table == "master":
+            pk = "inst_id"
+            query = """
+            select m.inst_id,
+            case when m.cua_brag in ('Yellow', 'Red') and ma.cua_brag like 'green' then 'True'
+            when m.cua_brag like 'Red' and ma.cua_brag like 'yellow' then 'True'
+            else 'False' end as "decresing_cua"
+            from master m
+            join master_archive ma on m.inst_id = ma.inst_id
+            and ma.date = (select max(date) from master_archive)
+            group by m.inst_id;
+            """
+        fields = [pk, "brag_decrease"]
         data = self.db.execute(query)
-        self.db.insert("master", fields, data)
+        self.db.insert(table, fields, data)
 
     def sensor_versions(self):
         query = """
@@ -648,30 +699,149 @@ class summary_data(object):
             rows = [[prod+date, prod, date] +  list(data[prod].values())]
             self.db.insert("deployment_trend", fields, rows, update=False)
 
+    def acct_rollup(self):
+        query = "select Account_Name,"
+        query += "max(csm),"
+        query += "max(cse),"
+        query += "max(csm_role),"
+        query += "max(arr),"
+        query += "max(acv),"
+        query += "max(Opportunity_Ct),"
+        query += "max(products),"
+        query += "max(next_renewal),"
+        query += "max(next_renewal_qt),"
+        query += "max(gs_meter),"
+        query += "max(gs_overall),"
+        query += "max(gs_last_updated),"
+        query += "max(last_cua_cta),"
+        query += "max(cua_status),"
+        query += "max(last_ta),"
+        query += "max(last_wb),"
+        query += "max(last_login),"
+        query += "min(days_since_login),"
+        query += "sum(last_30d_login_count),"
+        query += "sum(Last_30d_Connector_Count),"
+        query += "group_concat(integrations),"
+        query += "min(last_added_user),"
+        query += "min(Last_Created_Policy),"
+        query += "min(last_modified_policy),"
+        query += "sum(licenses),"
+        query += "sum(deployment),"
+        query += "round(sum(cast(deployment as real)) / sum(licenses) * 100, 2),"
+        query += "sum(last_24_contact),"
+        query += "sum(last_7d_contact),"
+        query += "sum(workload_deployment),"
+        query += "sum(bypass),"
+        query += "round(sum(cast(bypass as real)) / sum(deployment) * 100, 2),"
+        query += "sum(Last_30d_Bypass_Count),"
+        query += "sum(Sensor_Download_Unavailable),"
+        query += "round(sum(cast(sensor_download_unavailable as real)) / sum(deployment) * 100, 2),"
+        query += "sum(Sensor_Standard_Support),"
+        query += "round(sum(cast(sensor_standard_support as real)) / sum(deployment) * 100, 2),"
+        query += "sum(Sensor_Extended_Support),"
+        query += "round(sum(cast(sensor_extended_support as real)) / sum(deployment) * 100, 2),"
+        query += "sum(Sensor_EOL_Support),"
+        query += "round(sum(cast(sensor_eol_support as real)) / sum(deployment) * 100, 2),"
+        query += "sum(total_cases_30d),"
+        query += "sum(cbc_cases_30d),"
+        query += "sum(open_cases),"
+        query += "sum(open_cbc_cases),"
+        query += "sum(open_alerts),"
+        query += "sum(dismissed_alerts),"
+        query += "sum(terminated_alerts),"
+        query += "sum(denied_alerts),"
+        query += "sum(allow_and_log_alerts),"
+        query += "sum(ran_alerts),"
+        query += "sum(not_ran_alerts),"
+        query += "sum(policy_applied_alerts),"
+        query += "sum(policy_not_applied_alerts),"
+        query += "max(prod),"
+        query += "group_concat(orgid),"
+        query += "max(account_id),"
+        query += "group_concat(inst_id),"
+        query += "group_concat(account__c)"
+        query += "from master "
+        query += "group by account_name"
+        query += ";"
+        fields = [
+            "Account_Name",
+            "csm",
+            "cse",
+            "csm_role",
+            "arr",
+            "acv",
+            "opportunity_ct",
+            "products",
+            "next_renewal",
+            "next_renewal_qt",
+            "gs_meter",
+            "gs_overall",
+            "gs_last_updated",
+            "last_cua_cta",
+            "cua_status",
+            "last_ta",
+            "last_wb",
+            "last_login",
+            "days_since_login",
+            "last_30d_login_count",
+            "last_30d_connector_count",
+            "integrations",
+            "last_added_user",
+            "last_created_policy",
+            "last_modified_policy",
+            "licenses",
+            "deployment",
+            "deployment_perc",
+            "last_24_contact",
+            "last_7d_contact",
+            "workload_deployment",
+            "bypass",
+            "bypass_perc",
+            "last_30d_bypass_count",
+            "sensor_download_unavailable",
+            "Download_Unavailable_perc",
+            "Sensor_Standard_Support",
+            "standard_perc",
+            "Sensor_Extended_Support",
+            "extended_perc",
+            "Sensor_EOL_Support",
+            "eol_perc",
+            "total_cases_30d",
+            "cbc_cases_30d",
+            "open_cases",
+            "open_cbc_cases",
+            "open_alerts",
+            "dismissed_alerts",
+            "terminated_alerts",
+            "denied_alerts",
+            "allow_and_log_alerts",
+            "ran_alerts",
+            "not_ran_alerts",
+            "policy_applied_alerts",
+            "policy_not_applied_alerts",
+            "prod",
+            "orgid",
+            "account_id",
+            "inst_id",
+            "account__c"]
+        data = self.db.execute(query)
+        self.db.insert("account_master", fields, data, del_table=True)
+
 if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     report = summary_data(db)
-    print("lookup")
     report.endpoint_lookup()
-    print("directs")
     report.direct_inserts()
-    print("audit logs")
     report.audit_log_inserts()
-    print("connectors")
     report.connector_inserts()
-    print("endpoints")
     report.endpoint_inserts()
-    print("brag")
-    report.cua_brag()
-    print("sensor versions")
+    report.cua_brag("master")
     report.sensor_versions()
-    print("os versions")
     report.os_versions()
-    print("deployment")
     report.deployment_summary()
-    print("changes")
-    report.changes_over_time()
-    print("archive")
+    report.changes_over_time("master")
     report.master_archive()
-    print("deployment trend")
     report.prod_deployment_trend()
+    report.acct_rollup()
+    report.cua_brag("account_master")
+    report.changes_over_time("account_master")
