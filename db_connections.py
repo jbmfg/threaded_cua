@@ -123,6 +123,7 @@ class sqlite_db(object):
                         row[x] = row[x].replace("\'", "''") if isinstance(row[x], str) else row[x]
                         query += f"'{f}' = '{row[x]}', "
                     query = query[:-2]
+                    row[0] = row[0].replace("'", "''")
                     query += f" where {fields[0]} = '{row[0]}';"
                     cur.execute(query)
                 cur.execute("COMMIT")
@@ -141,7 +142,6 @@ class sqlite_db(object):
 
     def close_db(self):
         self.connection.close()
-
 
 if __name__ == "__main__":
     pass
