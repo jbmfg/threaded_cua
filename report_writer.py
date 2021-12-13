@@ -97,73 +97,77 @@ class report(object):
         worksheet.insert_chart(placement, chart)
 
     def master_sheet(self):
-        sheet = self.wb.add_worksheet("Master")
+        for ws_name in ["Master", "Account Master"]:
+            sheet = self.wb.add_worksheet(ws_name)
 
-        fields = ["Account_Name", "CSM", "CSE", "CSM_Role", "ARR", "ACV", "Products", "Next_Renewal", "Next_Renewal_Qt"]
-        fields += ["GS_Meter", "GS_Overall", "GS_Last_Updated", "Last_CUA_CTA", "CUA_Status", "Last_TA"]
-        fields += ["CUA_Brag", "Count_of_Violations", "Violations_Triggered", "brag_decrease", "Last_Login", "Days_Since_Login"]
-        fields += ["Last_30d_Login_Count", "Last_30d_Connector_Count", "Integrations", "Last_Added_User"]
-        fields += ["Last_Created_Policy", "Last_Modified_Policy", "Licenses", "Deployment", "Deployment_Perc", "Last_24_contact"]
-        fields += ["Last_7d_contact", "Bypass", "Bypass_Perc", "Last_30d_Bypass_Count", "Sensor_Download_Unavailable"]
-        fields += ["Download_Unavailable_perc"]
-        fields += ["Sensor_Standard_Support", "Standard_Perc", "Sensor_Extended_Support", "Extended_Perc", "Sensor_EOL_Support"]
-        fields += ["EOL_Perc", "Open_Alerts", "Dismissed_Alerts", "Terminated_Alerts", "Denied_Alerts", "Allow_and_Log_Alerts"]
-        fields += ["Ran_Alerts", "Not_Ran_Alerts", "Policy_Applied_Alerts", "Policy_Not_Applied_Alerts", "Prod", "OrgID"]
-        fields += ["Predictive_Churn_Meter", "Account_Risk_Factors", "Intent___Cylance", "Intent___Crowdstrike"]
-        fields += ["Intent___Endgame", "Intent___Sentinelone", "Intent___Microsoft_Defender_ATP", "Searching_For_Solution"]
-        fields += ["Previous_Predictive_Churn_Meter", "Predictive_Churn_Meter_Changed", "Indicators_Changed", "MSSP"]
-        fields += ["Account_ID", "inst_id"]
+            fields = ["Account_Name", "CSM", "CSE", "CSM_Role", "ARR", "ACV", "Products", "Next_Renewal", "Next_Renewal_Qt"]
+            fields += ["GS_Meter", "GS_Overall", "GS_Last_Updated", "Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
+            fields += ["CUA_Brag", "Count_of_Violations", "Violations_Triggered", "brag_decrease", "Last_Login"]
+            fields += ["Days_Since_Login", "Last_30d_Login_Count", "Last_30d_Connector_Count", "Integrations", "Last_Added_User"]
+            fields += ["Last_Created_Policy", "Last_Modified_Policy", "Licenses", "Deployment", "Deployment_Perc"]
+            fields += ["Last_24_contact", "Last_7d_contact", "Workload_Deployment", "Bypass", "Bypass_Perc"]
+            fields += ["Last_30d_Bypass_Count", "Sensor_Download_Unavailable", "Download_Unavailable_perc"]
+            fields += ["Sensor_Standard_Support", "Standard_Perc", "Sensor_Extended_Support", "Extended_Perc", "Sensor_EOL_Support"]
+            fields += ["EOL_Perc", "total_cases_30d", "cbc_cases_30d", "open_cases", "open_cbc_cases"]
+            fields += ["Open_Alerts", "Dismissed_Alerts", "Terminated_Alerts", "Denied_Alerts", "Allow_and_Log_Alerts"]
+            fields += ["Ran_Alerts", "Not_Ran_Alerts", "Policy_Applied_Alerts", "Policy_Not_Applied_Alerts", "Prod", "OrgID"]
+            #fields += ["Predictive_Churn_Meter", "Account_Risk_Factors", "Intent___Cylance", "Intent___Crowdstrike"]
+            #fields += ["Intent___Endgame", "Intent___Sentinelone", "Intent___Microsoft_Defender_ATP", "Searching_For_Solution"]
+            #fields += ["Previous_Predictive_Churn_Meter", "Predictive_Churn_Meter_Changed", "Indicators_Changed", "MSSP"]
+            fields += ["Account_ID", "inst_id"]
 
-        # Get any new fields and remove them before getting the data (then theyll be put back in)
-        new_fields = [[x, i] for x, i in enumerate(fields) if i not in [row[1] for row in self.db.execute("pragma table_info(master);")]]
-        for idx, f in new_fields:
-            fields.remove(f)
+            # Get any new fields and remove them before getting the data (then theyll be put back in)
+            data = self.db.execute("pragma table_info(master);")
+            new_fields = [[x, i] for x, i in enumerate(fields) if i not in [row[1] for row in data]]
+            for idx, f in new_fields:
+                fields.remove(f)
 
-        fields_txt = ",".join(fields)
-        col1url = False if self.csm_q == "%" else True
-        query = f"select {fields_txt} from master where CSM like '{self.csm_q}' order by Account_Name"
-        data = self.db.execute(query)
+            fields_txt = ",".join(fields)
+            col1url = False if self.csm_q == "%" else True
+            query = f"select {fields_txt} from {ws_name.replace(' ', '_')} where CSM like '{self.csm_q}' order by Account_Name"
+            data = self.db.execute(query)
 
-        # Reinsert the new fields
-        for idx, nf in new_fields:
-            fields.insert(idx, nf)
-        for row in data:
+            # Reinsert the new fields
             for idx, nf in new_fields:
-                row.insert(idx, nf)
-        fields_txt = ",".join(fields)
+                fields.insert(idx, nf)
+            for row in data:
+                for idx, nf in new_fields:
+                    row.insert(idx, nf)
+            fields_txt = ",".join(fields)
 
-        for x, row in enumerate(data):
-            for xx, cell in enumerate(row):
-                if cell:
-                    if re.match(r"[0-9]+\.[0-9]+", cell):
-                        data[x][xx] = float(cell)
-                    elif cell.isnumeric():
-                        data[x][xx] = int(cell)
-                        if data[x][xx] > 612272122559:
-                            data[x][xx] = datetime.datetime.strftime(datetime.datetime.fromtimestamp(data[x][xx]/1000).date(), "%Y-%m-%d")
+            for x, row in enumerate(data):
+                for xx, cell in enumerate(row):
+                    if cell:
+                        if re.match(r"[0-9]+\.[0-9]+", cell):
+                            data[x][xx] = float(cell)
+                        elif cell.isnumeric():
+                            data[x][xx] = int(cell)
+                            if data[x][xx] > 612272122559:
+                                data[x][xx] = datetime.datetime.strftime(datetime.datetime.fromtimestamp(data[x][xx]/1000).date(), "%Y-%m-%d")
 
-        header = [i.replace("___", " - ").replace("_", " ").replace("Perc", "%") for i in fields]
-        header = [i.replace("Count of Violations", "CUA Score") for i in header]
-        data.insert(0, header)
-        self.writerows(sheet, data, col1url=col1url, bolder=True)
+            header = [i.replace("___", " - ").replace("_", " ").replace("Perc", "%") for i in fields]
+            header = [i.replace("Count of Violations", "CUA Score") for i in header]
+            header = [i.replace("Violations Triggered", "Score Detail") for i in header]
+            data.insert(0, header)
+            self.writerows(sheet, data, col1url=col1url, bolder=True)
 
-        # Want to use this order on the individual sheets too
-        self.master_order = fields
-        self.master_order_txt = fields_txt
-        self.master_header = header
+            # Want to use this order on the individual sheets too
+            self.master_order = fields
+            self.master_order_txt = fields_txt
+            self.master_header = header
 
-        money = self.wb.add_format({'num_format': '$#,##0'})
-        percent = self.wb.add_format({'num_format': '0.00"%"'})
-        money_cols, percent_cols = [], []
-        for h in header:
-            if "%" in h:
-                percent_cols.append(header.index(h))
-            elif "ARR" in h or "ACV" in h:
-                money_cols.append(header.index(h))
-        for h in money_cols:
-            sheet.write_column(1, h, [r[h] for r in data[1:]], money)
-        for h in percent_cols:
-            sheet.write_column(1, h, [r[h] for r in data[1:]], percent)
+            money = self.wb.add_format({'num_format': '$#,##0'})
+            percent = self.wb.add_format({'num_format': '0.00"%"'})
+            money_cols, percent_cols = [], []
+            for h in header:
+                if "%" in h:
+                    percent_cols.append(header.index(h))
+                elif "ARR" in h or "ACV" in h:
+                    money_cols.append(header.index(h))
+            for h in money_cols:
+                sheet.write_column(1, h, [r[h] for r in data[1:]], money)
+            for h in percent_cols:
+                sheet.write_column(1, h, [r[h] for r in data[1:]], percent)
 
     def sensor_versions(self):
         sheet = self.wb.add_worksheet("Sensor Versions")
@@ -337,7 +341,7 @@ class report(object):
     def account_report(self, account):
         x, inst_id, account_name = account[0], account[1], account[2]
         account_name = account_name.replace("*", "").replace("/", "")
-        sheet_name = f"{x}. {account_name}"[:31]
+        sheet_name = f"{x}. {account_name.replace(':', '')}"[:31]
         sheet = self.wb.add_worksheet(sheet_name)
 
         # Active Bypass counts by version
@@ -527,7 +531,7 @@ class report(object):
         query = "select cse, inst_id from sf_data where cse != 'None';"
         cse_dict = self.db.execute(query, dict=True)
         for cse in cse_dict:
-            wb = xlsxwriter.Workbook("customer_usage_{}.xlsx".format(cse))
+            wb = xlsxwriter.Workbook("customer_usage_{}.xlsx".format(cse.title()))
 
             # Regular master
             inst_ids_txt = "', '".join([i for i in cse_dict[cse]])
