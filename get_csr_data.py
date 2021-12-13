@@ -5,7 +5,7 @@ import re
 from math import ceil
 import time
 
-CONNECTIONS = 50
+CONNECTIONS = 100
 
 class csr_data(object):
     def __init__(self, sfdb, db, csr, new_run=False):
@@ -20,7 +20,7 @@ class csr_data(object):
         del_tables = ["customers", "audit", "kits", "alerts", "endpoints",]
         #del_tables = []
         for t in del_tables:
-            print(t)
+            print(f"deleting table {t}")
             query = f"DROP TABLE IF EXISTS {t};"
             self.db.execute(query)
 
@@ -95,6 +95,7 @@ class csr_data(object):
                     self.db.insert("audit", fields, future.result(), pk=False, del_table=False)
 
     def get_endpoints(self):
+        start= time.time()
         def return_endpoints(row, tries=3):
             print(f"working on {row[0]}")
             start = time.time()
@@ -120,7 +121,7 @@ class csr_data(object):
                 response = r.json()
                 total_endpoints = response["num_found"]
                 if total_endpoints == 0:
-                    return [[inst_id] + ["No deployment"] * 11]
+                    return [[inst_id] + ["No deployment"] * 13]
                 results = [
                         [inst_id,
                         i["id"],
@@ -192,13 +193,17 @@ class csr_data(object):
         def chunk(lst, n):
             for i in range(0, len(lst), n):
                 yield lst[i:i + n]
-        chunks = chunk(needs, 100)
+        chunks = chunk(needs, CONNECTIONS)
         for c in chunks:
             with concurrent.futures.ThreadPoolExecutor(max_workers=CONNECTIONS) as executor:
                 future_to_url = {executor.submit(return_endpoints, r): r[0] for r in c}
+                ct = 0
                 for future in concurrent.futures.as_completed(future_to_url):
+                    ct += 1
                     insert_data.extend(future.result())
                     print(f'result of insert ({future.result()[0][0]}) = {self.db.insert("endpoints", fields, future.result(), pk=False, del_table=False)}')
+                    print(f"Just got back {ct}")
+        print(f"time to get endpoints = {time.time() - start}")
 
     def get_alerts(self):
         def return_alerts(row, tries=3):
@@ -288,7 +293,6 @@ class csr_data(object):
                             elif status["id"] == "NOT_APPLIED":
                                 policy_not_applied = status["total"]
                 results = [[inst_id, open_alerts, closed_alerts, terminated, denied, allow_log, ran, not_ran, policy_applied, policy_not_applied]]
-                print(f"{results} \n")
                 return results
 
         query = "select distinct inst_id from alerts;"
@@ -426,9 +430,9 @@ if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     csr, custs = setup(sfdb)
     print("making customer table")
-    test_run = csr_data(sfdb, db, csr, new_run=False)
-    #test_run.get_endpoints()
+    test_run = csr_data(sfdb, db, csr, new_run=True)
+    test_run.get_endpoints()
     #test_run.get_audit()
     #test_run.get_alerts()
     #test_run.get_kits()
-    test_run.get_connectors()
+    #test_run.get_connectors()
