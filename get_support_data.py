@@ -52,8 +52,11 @@ def get_support_data(db):
                             except ValueError:
                                 try:
                                     rows[x][r.index(d)] = datetime.datetime.strptime(d, "%b \'%y")
-                                except:
-                                    raise
+                                except ValueError:
+                                    try:
+                                        rows[x][r.index(d)] = datetime.datetime.strptime(d, "%B \'%y")
+                                    except:
+                                        raise
 
     # Calculate where the support is right now
     now = datetime.datetime.now()
@@ -74,4 +77,3 @@ def get_support_data(db):
 if __name__ == "__main__":
     db = sqlite_db("cua.db")
     get_support_data(db)
-
