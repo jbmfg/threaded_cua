@@ -37,7 +37,7 @@ class prod_connection(object):
         s.headers.update({"X-Csrf-Token": r.headers["X-Csrf-Token"]})
         return s
 
-    def request(self, url, pd={}, timeout=30, tries=3):
+    def request(self, url, pd={}, timeout=120, tries=3):
         if url[0] == "/":
             url = url[1:]
         # If no post data make GET request
