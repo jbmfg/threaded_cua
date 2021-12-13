@@ -13,14 +13,13 @@ def get_act_info(sfdb, inst_ids, db):
     a.ARR__c,
     csm.Name,
     cse.Name,
-    --COALESCE(a.Customer_Success_Manager_Role__c, a.Customer_Tier__c) as Tier,
     a.Customer_Success_Manager_Role__c as Tier,
     GS_CSM_Meter_Score__c,
     GS_Overall_Score__c,
     Health_Scores_Updated__c,
-    a.Account_ID_18_Digits__c,
-    i.Licenses_Purchased__c,
-    a.Account__c
+    a.Account_ID_18_Digits__c --,
+    --i.Licenses_Purchased__c,
+    --a.Account__c
     from dbo.SalesforceAccount a
     inner join dbo.SalesforceInstallation i on a.Account_ID_18_Digits__c = i.Account__c
     left join dbo.SalesforceUser csm on a.Assigned_CP__c = csm.Id
@@ -29,7 +28,27 @@ def get_act_info(sfdb, inst_ids, db):
     order by a.name;
     """
     data = [[str(x) for x in sublist] for sublist in sfdb.execute(query)]
-    fields = ["inst_id", "account_name", "arr", "csm", "cse", "csm_role", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id", "licenses_purchased", "account__c"]
+    #fields = ["inst_id", "account_name", "arr", "csm", "cse", "csm_role", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id", "licenses_purchased", "account__c"]
+    fields = ["inst_id", "account_name", "arr", "csm", "cse", "csm_role", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id"]
+    db.insert("sf_data", fields, data)
+
+    query = f"""
+    select i1.id,
+    max(i2.Licenses_Purchased__c),
+    a.Account__c
+    from dbo.SalesforceInstallation i1
+    left join dbo.SalesforceInstallation i2 on i1.Account__c = i2.Account__c
+    left join dbo.SalesforceAccount a on i1.Account__c = a.Account_ID_18_Digits__c
+    where i1.id in ('{"','".join(inst_ids)}')
+    and i2.Cb_Defense_Org_ID__c is not NULL
+    and i2.Status__c <> 'Decommissioned'
+    and i2.Installation_Type__c like '%Subscription%'
+    and i2.Cb_Defense_Backend_Instance__c <> 'None'
+    and i2.Normalized_Host_Count__c is not NULL
+    group by i1.id, a.Account__c
+    """
+    data = [[str(x) for x in sublist] for sublist in sfdb.execute(query)]
+    fields = ["inst_id", "licenses_purchased", "account__c"]
     db.insert("sf_data", fields, data)
 
 def get_installation_info(sfdb, inst_ids, db):
@@ -48,6 +67,11 @@ def get_installation_info(sfdb, inst_ids, db):
     group by i.id, i.Account__c, i.Product_Group__c
     """
     data = sfdb.execute(query)
+    # dedupe and sort
+    for row in data:
+        if row[1]:
+            products = list(set([i.strip() for i in row[1].split(",")]))
+            row[1] = ", ".join(sorted(products))
     fields = ["inst_id", "products"]
     db.insert("sf_data", fields, data)
 
@@ -91,6 +115,42 @@ def get_opp_info(sfdb, inst_ids, db):
     fields = ["inst_id", "acv", "opp_ct", "renewal_date", "renewal_quar"]
     db.insert("sf_data", fields, data)
 
+
+def get_case_info(sfdb, inst_ids, db):
+    ''' Get number of open cases, cases in last 30d '''
+    query = f"""
+    select c.Installation__c,
+    count(*)
+    from dbo.SalesforceCase c
+    where c.Installation__c in ('{"','".join(inst_ids)}')
+    --and c.status != 'Closed'
+    group by c.Installation__c;
+    """
+
+    cases = [
+        [["inst_id", "total_cases_30d", "cbc_cases_30d"], "cast(c.CreatedDate as date) > dateadd(DAY, -30, getdate())"],
+        [["inst_id", "open_cases", "open_cbc_cases"], "c.status != 'Closed'"]
+        ]
+    for x, c in enumerate(cases):
+        query = f"""
+        select
+        i.id,
+        count(*) as total_cases,
+        SUM(CASE when c.Product_Group__c in (
+            'Cb Defense',
+            'Cb Defense for VMware',
+            'Cb ThreatHunter',
+            'Cb ThreatSight',
+            'CB Workload') then 1 else 0 end) as cbc_count
+        from dbo.SalesforceInstallation i
+        left join dbo.SalesforceCase c on i.Account__c = c.AccountId
+        where i.Id in ('{"','".join(inst_ids)}')
+        and {cases[x][1]}
+        group by i.Id"""
+        data = sfdb.execute(query)
+        fields = cases[x][0]
+        db.insert("sf_data", fields, data)
+
 def get_ds_info(inst_ids, db):
     file_name = "csm_review--2021-09-20.csv"
     with open(file_name, "r", encoding="utf8") as f:
@@ -113,8 +173,8 @@ def get_cta_info(sfdb, ctadb, inst_ids, db, cta_type):
     accts = list(inst_ids_acct)
     query = f"""
     select AccountSFID,
-    max(createdDate) as "Last CTA Closed",
-    case when status in ('New','Work In Progress') then 'Open' else 'Closed' end as "CTA Status"
+    max(createdDate),
+    case when status in ('New','Work In Progress') then 'Open' else 'Closed' end
     from dbo.CDMGainsightCTA
     where reason like '{cta_type}'
     and AccountSFID in ('{"','".join(accts)}')
@@ -131,6 +191,10 @@ def get_cta_info(sfdb, ctadb, inst_ids, db, cta_type):
             rows.append([inst_id, "None", "None"])
     if cta_type == "Product Usage Analytics":
         fields = ["inst_id", "last_cua", "cua_status"]
+    elif cta_type == "CSA Whiteboarding":
+        fields = ["inst_id", "last_wb"]
+        for x, row in enumerate(rows):
+              rows[x] = row[:-1]
     elif cta_type == "Tech Assessment":
         fields = ["inst_id", "last_ta"]
         for x, row in enumerate(rows):
@@ -150,6 +214,8 @@ if __name__ == "__main__":
     get_act_info(sfdb, inst_ids, db)
     get_installation_info(sfdb, inst_ids, db)
     get_opp_info(sfdb, inst_ids, db)
-    get_ds_info(inst_ids, db)
+    get_case_info(sfdb, inst_ids, db)
+    #get_ds_info(inst_ids, db)
     get_cta_info(sfdb, ctadb, inst_ids, db, "Product Usage Analytics")
     get_cta_info(sfdb, ctadb, inst_ids, db, "Tech Assessment")
+    get_cta_info(sfdb, ctadb, inst_ids, db, "CSA Whiteboarding")
