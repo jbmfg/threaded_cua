@@ -651,22 +651,26 @@ class summary_data(object):
         fields = ["inst_id"] + all_keys
         self.db.insert("deployment_summary", fields, rows, del_table=True)
 
-    def master_archive(self):
+    def master_archive(self, ma_type):
+        if ma_type = "installation":
+            master_table, ma_table = "master", "master_archive"
+        elif ma_type = "account":
+            master_table, ma_table = "account_master", "account_master_archive"
         # Delete any entries in the master archive from today
-        self.db.execute("delete from master_archive where date = date();")
+        self.db.execute(f"delete from {ma_table} where date = date();")
         # Check for new columns in master not in the master archive
-        m_cols = [i[1] for i in self.db.execute("pragma table_info(master)")]
-        ma_cols = [i[1] for i in self.db.execute("pragma table_info(master_archive)")]
+        m_cols = [i[1] for i in self.db.execute(f"pragma table_info({master_table})")]
+        ma_cols = [i[1] for i in self.db.execute(f"pragma table_info({ma_table})")]
         new_cols = [[x, i] for x, i in enumerate(m_cols) if i not in ma_cols]
         # Get everything from master_archive and add any new columns
-        ma = self.db.execute("select * from master_archive;")
+        ma = self.db.execute(f"select * from {ma_table};")
         for xx, i in enumerate(ma):
             for x, col in new_cols:
                 ma[xx].insert(x+2, "")
-        query = "select date() || inst_id, date(), * from master;"
+        query = f"select date() || inst_id, date(), * from {master_table};"
         data = ma + self.db.execute(query)
-        fields = ["Unique_id", "Date"] + [i[1] for i in self.db.execute("pragma table_info(master);")]
-        self.db.insert("master_archive", fields, data, del_table=True, pk=True, update=False)
+        fields = ["Unique_id", "Date"] + [i[1] for i in self.db.execute(f"pragma table_info({master_table});")]
+        self.db.insert(f"{ma_table}", fields, data, del_table=True, pk=True, update=False)
 
     def prod_deployment_trend(self):
         # Delete any data from today
@@ -840,7 +844,8 @@ if __name__ == "__main__":
     report.os_versions()
     report.deployment_summary()
     report.changes_over_time("master")
-    report.master_archive()
+    report.master_archive("installation")
+    report.master_archive("account")
     report.prod_deployment_trend()
     report.acct_rollup()
     report.cua_brag("account_master")
