@@ -652,9 +652,9 @@ class summary_data(object):
         self.db.insert("deployment_summary", fields, rows, del_table=True)
 
     def master_archive(self, ma_type):
-        if ma_type = "installation":
+        if ma_type == "installation":
             master_table, ma_table = "master", "master_archive"
-        elif ma_type = "account":
+        elif ma_type == "account":
             master_table, ma_table = "account_master", "account_master_archive"
         # Delete any entries in the master archive from today
         self.db.execute(f"delete from {ma_table} where date = date();")

@@ -535,17 +535,31 @@ class report(object):
 
             # Regular master
             inst_ids_txt = "', '".join([i for i in cse_dict[cse]])
-            query = f"select {self.master_order_txt} from master where inst_id in ('{inst_ids_txt}');"
+            query = f"""
+            select {self.master_order_txt}
+            from account_master
+            where inst_id in ('{inst_ids_txt}');
+            """
             data = self.db.execute(query)
             sheet = self.write_masterlike_data(wb, "Master", data)
 
             # Reds only
-            query = f"select {self.master_order_txt} from master where inst_id in ('{inst_ids_txt}') and CUA_Brag = 'Red';"
+            query = f"""
+            select {self.master_order_txt}
+            from account_master
+            where inst_id in ('{inst_ids_txt}')
+            and CUA_Brag = 'Red';
+            """
             data = self.db.execute(query)
             sheet = self.write_masterlike_data(wb, "Reds", data)
 
             # Yellows only
-            query = f"select {self.master_order_txt} from master where inst_id in ('{inst_ids_txt}') and CUA_Brag = 'Yellow';"
+            query = f"""
+            select {self.master_order_txt}
+            from account_master
+            where inst_id in ('{inst_ids_txt}')
+            and CUA_Brag = 'Yellow';
+            """
             data = self.db.execute(query)
             sheet = self.write_masterlike_data(wb, "Yellows", data)
             wb.close()
