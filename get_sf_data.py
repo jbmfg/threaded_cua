@@ -18,14 +18,12 @@ def get_act_info(sfdb, inst_ids, db):
     GS_Overall_Score__c,
     Health_Scores_Updated__c,
     a.Account_ID_18_Digits__c --,
-    --i.Licenses_Purchased__c,
-    --a.Account__c
-    from dbo.SalesforceAccount a
-    inner join dbo.SalesforceInstallation i on a.Account_ID_18_Digits__c = i.Account__c
-    left join dbo.SalesforceUser csm on a.Assigned_CP__c = csm.Id
-    left join dbo.SalesforceUser cse on a.Customer_Success_Engineer__c = cse.Id
+    from edw_tesseract.sbu_ref_sbusfdc.account a
+    inner join edw_tesseract.sbu_ref_sbusfdc.installation__c i on a.Account_ID_18_Digits__c = i.Account__c
+    left join edw_tesseract.sbu_ref_sbusfdc.user_sbu csm on a.Assigned_CP__c = csm.Id
+    left join edw_tesseract.sbu_ref_sbusfdc.user_sbu cse on a.Customer_Success_Engineer__c = cse.Id
     where i.id in ('{"','".join(inst_ids)}')
-    order by a.name;
+    order by a.name
     """
     data = [[str(x) for x in sublist] for sublist in sfdb.execute(query)]
     #fields = ["inst_id", "account_name", "arr", "csm", "cse", "csm_role", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id", "licenses_purchased", "account__c"]
@@ -36,9 +34,9 @@ def get_act_info(sfdb, inst_ids, db):
     select i1.id,
     max(i2.Licenses_Purchased__c),
     a.Account__c
-    from dbo.SalesforceInstallation i1
-    left join dbo.SalesforceInstallation i2 on i1.Account__c = i2.Account__c
-    left join dbo.SalesforceAccount a on i1.Account__c = a.Account_ID_18_Digits__c
+    from edw_tesseract.sbu_ref_sbusfdc.installation__c i1
+    left join edw_tesseract.sbu_ref_sbusfdc.installation__c i2 on i1.Account__c = i2.Account__c
+    left join edw_tesseract.sbu_ref_sbusfdc.account a on i1.Account__c = a.Account_ID_18_Digits__c
     where i1.id in ('{"','".join(inst_ids)}')
     and i2.Cb_Defense_Org_ID__c is not NULL
     and i2.Status__c <> 'Decommissioned'
@@ -55,17 +53,18 @@ def get_installation_info(sfdb, inst_ids, db):
     query = f"""
     select i.id, products = STUFF(
     (select ', ' + i2.Product_Group__c
-    from dbo.SalesforceInstallation i2
+    from edw_tesseract.sbu_ref_sbusfdc.installation__c i2
     where i2.Account__c = i.Account__c
     for xml path('')),1,1,'')
-    from dbo.SalesforceInstallation i
+    from edw_tesseract.sbu_ref_sbusfdc.installation__c i
     where 1=1
     and i.Account__c in (
     select a.Account_ID_18_Digits__c
-    from dbo.SalesforceAccount a
+    from edw_tesseract.sbu_ref_sbusfdc.account a
     where i.id in ('{"','".join(inst_ids)}'))
     group by i.id, i.Account__c, i.Product_Group__c
     """
+    print(query)
     data = sfdb.execute(query)
     # dedupe and sort
     for row in data:
@@ -100,7 +99,7 @@ def get_opp_info(sfdb, inst_ids, db):
     query = f"""
     select i.id, sum(o.ACV_Amount__c), count(o.Id), min(o.CloseDate)
     from dbo.SalesforceOpportunity o
-    inner join dbo.SalesforceInstallation i on o.AccountId = i.Account__c
+    inner join edw_tesseract.sbu_ref_sbusfdc.installation__c i on o.AccountId = i.Account__c
     where convert(datetime, o.CloseDate) > getdate()
     and o.[Type] like '%renewal%'
     and (
@@ -114,7 +113,6 @@ def get_opp_info(sfdb, inst_ids, db):
         data[x].append(lookup_q(row[3]))
     fields = ["inst_id", "acv", "opp_ct", "renewal_date", "renewal_quar"]
     db.insert("sf_data", fields, data)
-
 
 def get_case_info(sfdb, inst_ids, db):
     ''' Get number of open cases, cases in last 30d '''
@@ -142,7 +140,7 @@ def get_case_info(sfdb, inst_ids, db):
             'Cb ThreatHunter',
             'Cb ThreatSight',
             'CB Workload') then 1 else 0 end) as cbc_count
-        from dbo.SalesforceInstallation i
+        from edw_tesseract.sbu_ref_sbusfdc.installation__c i
         left join dbo.SalesforceCase c on i.Account__c = c.AccountId
         where i.Id in ('{"','".join(inst_ids)}')
         and {cases[x][1]}
@@ -165,8 +163,8 @@ def get_cta_info(sfdb, ctadb, inst_ids, db, cta_type):
     query = f"""
     select a.account_ID_18_Digits__c,
     i.id
-    from dbo.SalesforceInstallation i
-    left join dbo.SalesforceAccount a on i.Account__c = a.Account_ID_18_Digits__c
+    from edw_tesseract.sbu_ref_sbusfdc.installation__c i
+    left join edw_tesseract.sbu_ref_sbusfdc.account a on i.Account__c = a.Account_ID_18_Digits__c
     where i.id in ('{"','".join(inst_ids)}');
     """
     inst_ids_acct = sfdb.execute(query, dict=True)

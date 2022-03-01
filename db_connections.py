@@ -2,6 +2,7 @@ import pyodbc
 import json
 import datetime
 import sqlite3
+import trino
 import os
 import sys
 from collections import defaultdict

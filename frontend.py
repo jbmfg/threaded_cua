@@ -8,12 +8,17 @@ from create_summary_data import summary_data
 from report_writer import report
 import time
 
-def setup(sfdb):
+def setup(tess_db):
     '''Get all the accounts we'll be fetching and login to required CSR'''
-    with open("report_setup.sql", "r") as f:
+    with open("report_setup_tess.sql", "r") as f:
         query = f.read()
-    custs = sfdb.execute(query)
-    prods = list(set([i[1] for i in custs]))
+    custs = tess_db.execute(query)
+    lim_custs = []
+    for i in custs:
+        if i[1] == "prod01":
+            lim_custs.append(i)
+
+    prods = list(set([i[1] for i in lim_custs]))
     prods.sort()
     # Get Google auth codes from user
     auth_dict = {}
@@ -23,40 +28,35 @@ def setup(sfdb):
     csr = {}
     for prod in auth_dict:
         csr[prod] = prod_connection(prod, auth_dict[prod])
-    """for prod in csr:
-        print (prod)
-        print(csr[prod].request("appservices/v5/eulas").status_code)
-    """
-    return csr, custs
+    return csr, lim_custs
 
 if __name__ == "__main__":
     start = time.time()
-    sfdb = db_connections.sf_connection("ods")
-    ctadb  = db_connections.sf_connection("cta")
+    tess_db = db_connections.tesseract_connection()
     print(f"Time to setup connection  {time.time() - start}")
     db = db_connections.sqlite_db("cua.db")
     print(f"Time to create db {time.time() - start}")
-    csr, custs = setup(sfdb)
+    csr, custs = setup(tess_db)
     print(f"Time to get initial data {time.time() - start}")
     inst_ids = [i[0] for i in custs]
     print(f"Time to get inst_id list {time.time() - start}")
     get_sf_data.initial_insert(db, custs)
     print(f"Time to first insert {time.time() - start}")
-    get_sf_data.get_act_info(sfdb, inst_ids, db)
+    get_sf_data.get_act_info(tess_db, inst_ids, db)
     print(f"Time to do acct info {time.time() - start}")
-    get_sf_data.get_installation_info(sfdb, inst_ids, db)
+    get_sf_data.get_installation_info(tess_db, inst_ids, db)
     print(f"Time to do inst info {time.time() - start}")
-    get_sf_data.get_opp_info(sfdb, inst_ids, db)
+    get_sf_data.get_opp_info(tess_db, inst_ids, db)
     print(f"Time to do opp info {time.time() - start}")
-    get_sf_data.get_case_info(sfdb, inst_ids, db)
+    get_sf_data.get_case_info(tess_db, inst_ids, db)
     print(f"Time to do case info {time.time() - start}")
     #get_sf_data.get_ds_info(inst_ids, db)
     print(f"Time to ds info {time.time() - start}")
-    get_sf_data.get_cta_info(sfdb, ctadb, inst_ids, db, "Product Usage Analytics")
-    get_sf_data.get_cta_info(sfdb, ctadb, inst_ids, db, "Tech Assessment")
-    get_sf_data.get_cta_info(sfdb, ctadb, inst_ids, db, "CSA Whiteboarding")
+    get_sf_data.get_cta_info(tess_db, ctadb, inst_ids, db, "Product Usage Analytics")
+    get_sf_data.get_cta_info(tess_db, ctadb, inst_ids, db, "Tech Assessment")
+    get_sf_data.get_cta_info(tess_db, ctadb, inst_ids, db, "CSA Whiteboarding")
     print(f"Time to cta info {time.time() - start}")
-    csr_getter = csr_data(sfdb, db, csr, new_run=True)
+    csr_getter = csr_data(tess_db, db, csr, new_run=True)
     print("Getting Endpoints")
     csr_getter.get_endpoints()
     print("Getting Alerts")
