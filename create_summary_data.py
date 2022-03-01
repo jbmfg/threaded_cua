@@ -65,10 +65,10 @@ class summary_data(object):
         query = "select * from sf_data;"
         data = self.db.execute(query)
         for x, r in enumerate(data):
-            products = r[13].split(", ")
+            products = r[14].split(", ")
             products[:] = set([p.strip() for p in products])
             products = ", ".join(products)
-            data[x][13] = products
+            data[x][14] = products
         fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "CSM_Role", "GS_Meter", "GS_Overall"]
         fields += ["GS_Last_Updated", "Account_ID", "Licenses", "account__c", "Products", "ACV", "Opportunity_Ct"]
         fields += ["Next_Renewal", "Next_Renewal_Qt", "total_cases_30d", "cbc_cases_30d", "open_cases", "open_cbc_cases"]

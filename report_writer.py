@@ -13,10 +13,10 @@ class report(object):
         self.sensor_versions()
         self.os_versions()
         self.deployment_summary()
-        self.cse_report()
         if self.csm == "all":
             self.deployment_trend()
             self.deployment_trend_perc()
+            self.cse_report()
         if self.csm != "all":
             query = f"select inst_id, account_name from master where csm like '{self.csm_q}' order by account_name"
             self.accounts = [[x] + i for x, i in enumerate(self.db.execute(query))]
@@ -534,11 +534,10 @@ class report(object):
             wb = xlsxwriter.Workbook("customer_usage_{}.xlsx".format(cse.title()))
 
             # Regular master
-            inst_ids_txt = "', '".join([i for i in cse_dict[cse]])
             query = f"""
             select {self.master_order_txt}
             from account_master
-            where inst_id in ('{inst_ids_txt}');
+            where cse = '{cse.title()}';
             """
             data = self.db.execute(query)
             sheet = self.write_masterlike_data(wb, "Master", data)
@@ -547,7 +546,7 @@ class report(object):
             query = f"""
             select {self.master_order_txt}
             from account_master
-            where inst_id in ('{inst_ids_txt}')
+            where cse = '{cse.title()}'
             and CUA_Brag = 'Red';
             """
             data = self.db.execute(query)
@@ -557,7 +556,7 @@ class report(object):
             query = f"""
             select {self.master_order_txt}
             from account_master
-            where inst_id in ('{inst_ids_txt}')
+            where cse = '{cse.title()}'
             and CUA_Brag = 'Yellow';
             """
             data = self.db.execute(query)
