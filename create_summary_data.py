@@ -65,7 +65,7 @@ class summary_data(object):
         query = "select * from sf_data;"
         data = self.db.execute(query)
         for x, r in enumerate(data):
-            products = r[14].split(", ")
+            products = r[14].split(", ") if r[14] else ["None"]
             products[:] = set([p.strip() for p in products])
             products = ", ".join(products)
             data[x][14] = products
@@ -179,7 +179,7 @@ class summary_data(object):
         self.db.insert("master", fields, data)
 
         # Connector login counts
-        query = "select max(event_time) from audit;"
+        query = "select max(event_time) from audit where event_time <> 'csr';"
         max_time = int(self.db.execute(query)[0][0])
         # 30 days before the max
         diff = max_time - 30 * 24 * 60 * 60 * 1000

@@ -163,11 +163,10 @@ class tesseract_connection(object):
     def execute(self, query, dict=False):
         data = self.cur.execute(query) #.fetchall()
         if dict:
-            if len(data[0]) == 2:
-                d = defaultdict(list)
-                for r in data:
-                    d[r[0]].append(r[1])
-                return d
+            d = defaultdict(list)
+            for r in data:
+                d[r[0]].append(r[1])
+            return d
         return [list(i) for i in data]
 
 if __name__ == "__main__":

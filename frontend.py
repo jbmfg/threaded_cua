@@ -13,12 +13,8 @@ def setup(tess_db):
     with open("report_setup_tess.sql", "r") as f:
         query = f.read()
     custs = tess_db.execute(query)
-    lim_custs = []
-    for i in custs:
-        if i[1] == "prod01":
-            lim_custs.append(i)
 
-    prods = list(set([i[1] for i in lim_custs]))
+    prods = list(set([i[1] for i in custs]))
     prods.sort()
     # Get Google auth codes from user
     auth_dict = {}
@@ -28,7 +24,7 @@ def setup(tess_db):
     csr = {}
     for prod in auth_dict:
         csr[prod] = prod_connection(prod, auth_dict[prod])
-    return csr, lim_custs
+    return csr, custs
 
 if __name__ == "__main__":
     start = time.time()
@@ -52,9 +48,9 @@ if __name__ == "__main__":
     print(f"Time to do case info {time.time() - start}")
     #get_sf_data.get_ds_info(inst_ids, db)
     print(f"Time to ds info {time.time() - start}")
-    get_sf_data.get_cta_info(tess_db, ctadb, inst_ids, db, "Product Usage Analytics")
-    get_sf_data.get_cta_info(tess_db, ctadb, inst_ids, db, "Tech Assessment")
-    get_sf_data.get_cta_info(tess_db, ctadb, inst_ids, db, "CSA Whiteboarding")
+    get_sf_data.get_cta_info(tess_db, inst_ids, db, "Product Usage Analytics")
+    get_sf_data.get_cta_info(tess_db, inst_ids, db, "Tech Assessment")
+    get_sf_data.get_cta_info(tess_db, inst_ids, db, "CSA Whiteboarding")
     print(f"Time to cta info {time.time() - start}")
     csr_getter = csr_data(tess_db, db, csr, new_run=True)
     print("Getting Endpoints")

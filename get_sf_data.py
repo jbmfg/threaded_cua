@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import datetime
 import csv
+from collections import defaultdict
 
 def initial_insert(db, custs):
     fields = ["inst_id", "backend", "org_id"]
@@ -64,13 +65,34 @@ def get_installation_info(sfdb, inst_ids, db):
     where i.id in ('{"','".join(inst_ids)}'))
     group by i.id, i.Account__c, i.Product_Group__c
     """
-    print(query)
+    query = f"""
+    select i.id, i.account__c
+    from edw_tesseract.sbu_ref_sbusfdc.installation__c i
+    left join edw_tesseract.sbu_ref_sbusfdc.account a on i.account__c = a.account_id_18_digits__c
+    where i.id in ('{"','".join(inst_ids)}')
+    """
     data = sfdb.execute(query)
-    # dedupe and sort
-    for row in data:
-        if row[1]:
-            products = list(set([i.strip() for i in row[1].split(",")]))
-            row[1] = ", ".join(sorted(products))
+    lookup = {}
+    for i in data:
+        lookup[i[1]] = i[0]
+
+    accounts = [i[1] for i in data]
+    query = f"""
+    select account__c, product_group__c, start_date__c, end_date__c, product_family__c, product__c, product_code__c
+    from edw_tesseract.sbu_ref_sbusfdc.bit9_subscriptions__c s
+    where s.account__c in ('{"','".join(accounts)}')
+    """
+    data = sfdb.execute(query)
+    products = defaultdict(list)
+    for i in data:
+        if i[1]:
+            products[i[0]].append(i[1])
+    for i in products:
+        products[i]  = list(set(products[i]))
+    for i in list(products):
+        inst_id = lookup[i]
+        products[inst_id] = ", ".join(sorted(products.pop(i)))
+    data = [[i, products[i]] for i in products]
     fields = ["inst_id", "products"]
     db.insert("sf_data", fields, data)
 
@@ -98,15 +120,13 @@ def get_opp_info(sfdb, inst_ids, db):
 
     query = f"""
     select i.id, sum(o.ACV_Amount__c), count(o.Id), min(o.CloseDate)
-    from dbo.SalesforceOpportunity o
+    from edw_tesseract.sbu_ref_sbusfdc.opportunity o
     inner join edw_tesseract.sbu_ref_sbusfdc.installation__c i on o.AccountId = i.Account__c
-    where convert(datetime, o.CloseDate) > getdate()
-    and o.[Type] like '%renewal%'
-    and (
-    CHARINDEX('CBD', o.Product_Family__c) > 0
-    OR CHARINDEX('CBTH', o.Product_Family__c) > 0)
+    where o.CloseDate > CURRENT_DATE
+    and o."Type" like '%Renewal%'
+    and (position('CBD' IN o.Product_Family__c) > 0 OR position('CBTH' IN o.Product_Family__c) > 0)
     and i.id in ('{"','".join(inst_ids)}')
-    group by i.id;
+    group by i.id
     """
     data = sfdb.execute(query)
     for x, row in enumerate(data):
@@ -116,17 +136,8 @@ def get_opp_info(sfdb, inst_ids, db):
 
 def get_case_info(sfdb, inst_ids, db):
     ''' Get number of open cases, cases in last 30d '''
-    query = f"""
-    select c.Installation__c,
-    count(*)
-    from dbo.SalesforceCase c
-    where c.Installation__c in ('{"','".join(inst_ids)}')
-    --and c.status != 'Closed'
-    group by c.Installation__c;
-    """
-
     cases = [
-        [["inst_id", "total_cases_30d", "cbc_cases_30d"], "cast(c.CreatedDate as date) > dateadd(DAY, -30, getdate())"],
+        [["inst_id", "total_cases_30d", "cbc_cases_30d"], "from_iso8601_timestamp(c.createddate) > CURRENT_DATE - interval '30' day"],
         [["inst_id", "open_cases", "open_cbc_cases"], "c.status != 'Closed'"]
         ]
     for x, c in enumerate(cases):
@@ -141,7 +152,7 @@ def get_case_info(sfdb, inst_ids, db):
             'Cb ThreatSight',
             'CB Workload') then 1 else 0 end) as cbc_count
         from edw_tesseract.sbu_ref_sbusfdc.installation__c i
-        left join dbo.SalesforceCase c on i.Account__c = c.AccountId
+        left join edw_tesseract.sbu_ref_sbusfdc.case_sbu c on i.Account__c = c.AccountId
         where i.Id in ('{"','".join(inst_ids)}')
         and {cases[x][1]}
         group by i.Id"""
@@ -159,27 +170,29 @@ def get_ds_info(inst_ids, db):
         data = ds[1:]
     db.insert("data_science", fields, data, del_table=True)
 
-def get_cta_info(sfdb, ctadb, inst_ids, db, cta_type):
+def get_cta_info(sfdb, inst_ids, db, cta_type):
     query = f"""
     select a.account_ID_18_Digits__c,
     i.id
     from edw_tesseract.sbu_ref_sbusfdc.installation__c i
     left join edw_tesseract.sbu_ref_sbusfdc.account a on i.Account__c = a.Account_ID_18_Digits__c
-    where i.id in ('{"','".join(inst_ids)}');
+    where i.id in ('{"','".join(inst_ids)}')
     """
     inst_ids_acct = sfdb.execute(query, dict=True)
+    for i in inst_ids_acct:
+        inst_ids_acct[i] = ", ".join(inst_ids_acct[i])
     accts = list(inst_ids_acct)
     query = f"""
-    select AccountSFID,
-    max(createdDate),
+    select account_id,
+    max(created_date),
     case when status in ('New','Work In Progress') then 'Open' else 'Closed' end
-    from dbo.CDMGainsightCTA
+    from edw_tesseract.sbu_ref_sbusfdc.gsctadataset
     where reason like '{cta_type}'
-    and AccountSFID in ('{"','".join(accts)}')
-    group by AccountSFID, status;
+    and account_id in ('{"','".join(accts)}')
+    group by account_id, status
     """
     rows = []
-    data = ctadb.execute(query)
+    data = sfdb.execute(query)
     for row in data:
         for i in inst_ids_acct[row[0]]:
             rows.append([i] + row[1:])
