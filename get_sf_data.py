@@ -1,6 +1,9 @@
 # -*- coding: UTF-8 -*-
 import datetime
 import csv
+import os
+import openpyxl
+import dateparser
 from collections import defaultdict
 
 def initial_insert(db, custs):
@@ -179,8 +182,8 @@ def get_cta_info(sfdb, inst_ids, db, cta_type):
     where i.id in ('{"','".join(inst_ids)}')
     """
     inst_ids_acct = sfdb.execute(query, dict=True)
-    for i in inst_ids_acct:
-        inst_ids_acct[i] = ", ".join(inst_ids_acct[i])
+    #for i in inst_ids_acct:
+    #    inst_ids_acct[i] = ", ".join(inst_ids_acct[i])
     accts = list(inst_ids_acct)
     query = f"""
     select account_id,
@@ -212,21 +215,38 @@ def get_cta_info(sfdb, inst_ids, db, cta_type):
             rows[x] = row[:-1]
     db.insert("sf_data", fields, rows)
 
+def get_activity(db):
+    xlsx_files = [i for i in os.listdir() if i.endswith(".xlsx") and i.startswith("Distinct")]
+    data = []
+    for f in xlsx_files:
+        wb = openpyxl.load_workbook(f, data_only=True)
+        s = wb["Mda Sheet"]
+        for x, i in enumerate(s.rows):
+            account = s.cell(row=x+1, column=1).value
+            act_date = s.cell(row=x+1, column=6).value
+            act_date = dateparser.parse(act_date)
+            if not act_date:
+                continue
+            act_date = datetime.datetime.strftime(act_date, "%Y-%m-%d")
+            data.append([account, act_date])
+    fields = ["account", "activity_date"]
+    db.insert("cse_activity", fields, data, pk=False, del_table=True)
+
 if __name__ == "__main__":
     import db_connections
-    sfdb = db_connections.sf_connection("ods")
-    ctadb = db_connections.sf_connection("cta")
+    sfdb = db_connections.tesseract_connection()
     db = db_connections.sqlite_db("cua.db")
-    with open("report_setup.sql", "r") as f:
+    with open("report_setup_tess.sql", "r") as f:
         query = f.read()
     custs = sfdb.execute(query)
     inst_ids = [i[0] for i in custs]
     initial_insert(db, custs)
     get_act_info(sfdb, inst_ids, db)
+    get_activity(db)
     get_installation_info(sfdb, inst_ids, db)
     get_opp_info(sfdb, inst_ids, db)
     get_case_info(sfdb, inst_ids, db)
     #get_ds_info(inst_ids, db)
-    get_cta_info(sfdb, ctadb, inst_ids, db, "Product Usage Analytics")
-    get_cta_info(sfdb, ctadb, inst_ids, db, "Tech Assessment")
-    get_cta_info(sfdb, ctadb, inst_ids, db, "CSA Whiteboarding")
+    get_cta_info(sfdb, inst_ids, db, "Product Usage Analytics")
+    get_cta_info(sfdb, inst_ids, db, "Tech Assessment")
+    get_cta_info(sfdb, inst_ids, db, "CSA Whiteboarding")

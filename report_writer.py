@@ -102,6 +102,7 @@ class report(object):
 
             fields = ["Account_Name", "CSM", "CSE", "CSM_Role", "ARR", "ACV", "Products", "Next_Renewal", "Next_Renewal_Qt"]
             fields += ["GS_Meter", "GS_Overall", "GS_Last_Updated", "Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
+            fields += ["last_cse_timeline"]
             fields += ["CUA_Brag", "Count_of_Violations", "Violations_Triggered", "brag_decrease", "Last_Login"]
             fields += ["Days_Since_Login", "Last_30d_Login_Count", "Last_30d_Connector_Count", "Integrations", "Last_Added_User"]
             fields += ["Last_Created_Policy", "Last_Modified_Policy", "Licenses", "Deployment", "Deployment_Perc"]
@@ -145,7 +146,7 @@ class report(object):
                             if data[x][xx] > 612272122559:
                                 data[x][xx] = datetime.datetime.strftime(datetime.datetime.fromtimestamp(data[x][xx]/1000).date(), "%Y-%m-%d")
 
-            header = [i.replace("___", " - ").replace("_", " ").replace("Perc", "%") for i in fields]
+            header = [i.replace("___", " - ").replace("_", " ").replace("Perc", "%").title() for i in fields]
             header = [i.replace("Count of Violations", "CUA Score") for i in header]
             header = [i.replace("Violations Triggered", "Score Detail") for i in header]
             data.insert(0, header)

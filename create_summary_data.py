@@ -107,6 +107,17 @@ class summary_data(object):
         fields += ["Previous_Predictive_Churn_Meter", "Predictive_Churn_Meter_Changed", "Indicators_Changed", "MSSP"]
         self.db.insert("master", fields, data)
 
+    def cse_activity_inserts(self):
+        ''' cse timeline activities '''
+        lookup = self.db.execute("select account_name, inst_id from master;", dict=True)
+        data = self.db.execute("select account, max(activity_date) from cse_activity group by account;")
+        rows = []
+        for acct, act_date in data:
+            for inst_id in lookup[acct.lower()]:
+                rows.append([inst_id, act_date])
+        fields = ["inst_id", "last_cse_timeline"]
+        self.db.insert("master", fields, rows)
+
     def connector_inserts(self):
         ''' Mainly looking for integrations by parsing the connector names'''
         # SIEMs/ Integrations
@@ -721,6 +732,7 @@ class summary_data(object):
         query += "max(cua_status),"
         query += "max(last_ta),"
         query += "max(last_wb),"
+        query += "max(last_cse_timeline),"
         query += "max(last_login),"
         query += "min(days_since_login),"
         query += "sum(last_30d_login_count),"
@@ -785,6 +797,7 @@ class summary_data(object):
             "cua_status",
             "last_ta",
             "last_wb",
+            "last_cse_timeline",
             "last_login",
             "days_since_login",
             "last_30d_login_count",
@@ -843,6 +856,7 @@ if __name__ == "__main__":
     report.sensor_versions()
     report.os_versions()
     report.deployment_summary()
+    report.cse_activity_inserts()
     report.changes_over_time("master")
     report.master_archive("installation")
     report.master_archive("account")
