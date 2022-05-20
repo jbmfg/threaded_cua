@@ -5,7 +5,7 @@ import re
 from math import ceil
 import time
 
-CONNECTIONS = 100
+CONNECTIONS = 25
 
 class csr_data(object):
     def __init__(self, sfdb, db, csr, new_run=False):
@@ -17,7 +17,8 @@ class csr_data(object):
         self.insts = self.create_customer_table_thread()
 
     def delete_existing_tables(self):
-        del_tables = ["customers", "audit", "kits", "alerts", "endpoints",]
+        del_tables = ["customers", "audit", "kits", "alerts", "endpoints", "dashboards"]
+        #del_tables = ["customers", "audit"]
         #del_tables = []
         for t in del_tables:
             print(f"deleting table {t}")
@@ -420,19 +421,85 @@ class csr_data(object):
                 print(f"just got back #{ct} - {iid}")
                 self.db.insert("connectors", fields, future.result(), pk=False, del_table=False)
 
+    def get_dashboards(self):
+        def return_dashboards(row, tries=3):
+            inst_id, prod, org_id = row[0], row[1], row[2]
+            pd = {
+                "searchDefinition":
+                {
+                    "version": "1",
+                    "searchWindow": "ONE_MONTH",
+                    "dataGrouping": "NO_GROUP_RESULTS",
+                    "criteria":
+                    {
+                        "SEVERITY":
+                        [
+                            "WARNING"
+                        ],
+                        "THREAT_SCORE":
+                        [
+                            "1"
+                        ],
+                        "DISMISSED":
+                        [
+                            "true",
+                            "false"
+                        ]
+                    },
+                    "orgId": 1035
+                }}
+            r = self.csr[prod].request(f"appservices/v5/orgs/{org_id}/dashboard/attacks-stopped", pd=pd)
+            if not r:
+                return [[inst_id] + ["Failed"] * 16]
+            elif r.status_code == 200:
+                response = r.json()
+            if response["message"] != "success":
+                return [[inst_id] + [""] * 16]
+
+            threat_types = ["RISKY_PROGRAM", "NON_MALWARE", "UNKNOWN", "NEW_MALWARE", "KNOWN_MALWARE"]
+            metrics = ["count", "percentage", "percentageChange"]
+            results = [inst_id]
+            for tt in threat_types:
+                for m in metrics:
+                    results.append(response["threatSummary"]["ATTACKS_STOPPED"][tt][m])
+            return [results]
+
+        query = "select distinct inst_id from dashboards;"
+        already_inserted = [i[0] for i in self.db.execute(query)]
+        query = 'select inst_id, prod, org_id from customers where org_key != "";'
+        data = self.db.execute(query)
+        needs = [row for row in data if row[0] not in already_inserted]
+        print(needs)
+        fields = ["inst_id", "pup_count", "pup_perc", "pup_perc_change"]
+        fields += ["non_malware_count", "non_malware_perc", "non_malware_perc_change"]
+        fields += ["unknown_count", "unknown_perc", "unknown_perc_change"]
+        fields += ["sus_malware_count", "sus_malware_perc", "sus_malware_perc_change"]
+        fields += ["known_malware_count", "known_malware_perc", "known_malware_perc_change"]
+        insert_data = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=CONNECTIONS) as executor:
+            future_to_url = {executor.submit(return_dashboards, r): r[0] for r in needs}
+            ct = 0
+            for future in concurrent.futures.as_completed(future_to_url):
+                ct += 1
+                iid = future_to_url[future]
+                print(f"just got back dashboards #{ct} - {iid}")
+                #insert_data.extend(future.result())
+                self.db.insert("dashboards", fields, future.result(), pk=True, del_table=False)
+
     def get_everything(self):
         pass
 
 if __name__ == "__main__":
     import db_connections
     from frontend import setup
-    sfdb = db_connections.sf_connection("ods")
+    sfdb = db_connections.tesseract_connection()
     db = db_connections.sqlite_db("cua.db")
     csr, custs = setup(sfdb)
     print("making customer table")
     test_run = csr_data(sfdb, db, csr, new_run=True)
-    test_run.get_endpoints()
+    #test_run.get_endpoints()
     #test_run.get_audit()
     #test_run.get_alerts()
     #test_run.get_kits()
     #test_run.get_connectors()
+    test_run.get_dashboards()
