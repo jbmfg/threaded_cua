@@ -11,10 +11,12 @@ import time
 def setup(tess_db):
     '''Get all the accounts we'll be fetching and login to required CSR'''
     with open("report_setup_tess.sql", "r") as f:
+    #with open("report_setup_tess_nonCSM.sql", "r") as f:
         query = f.read()
     custs = tess_db.execute(query)
 
     prods = list(set([i[1] for i in custs]))
+    print(prods)
     prods.sort()
     # Get Google auth codes from user
     auth_dict = {}
@@ -65,6 +67,8 @@ if __name__ == "__main__":
     csr_getter.get_kits()
     print("Getting Connectors")
     csr_getter.get_connectors()
+    print("Getting Dashboards")
+    csr_getter.get_dashboards()
     print("Getting Support Data")
     get_support_data(db)
     master_builder = summary_data(db)
