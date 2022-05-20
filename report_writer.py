@@ -100,7 +100,7 @@ class report(object):
         for ws_name in ["Master", "Account Master"]:
             sheet = self.wb.add_worksheet(ws_name)
 
-            fields = ["Account_Name", "CSM", "CSE", "CSM_Role", "ARR", "ACV", "Products", "Next_Renewal", "Next_Renewal_Qt"]
+            fields = ["Account_Name", "CSM", "CSE", "CS_Tier", "ARR", "ACV", "Products", "Next_Renewal", "Next_Renewal_Qt"]
             fields += ["GS_Meter", "GS_Overall", "GS_Last_Updated", "Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
             fields += ["last_cse_timeline"]
             fields += ["CUA_Brag", "Count_of_Violations", "Violations_Triggered", "brag_decrease", "Last_Login"]

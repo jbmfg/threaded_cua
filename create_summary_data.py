@@ -70,7 +70,8 @@ class summary_data(object):
             products = ", ".join(products)
             data[x][14] = products
         fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "CSM_Role", "GS_Meter", "GS_Overall"]
-        fields += ["GS_Last_Updated", "Account_ID", "Licenses", "account__c", "Products", "ACV", "Opportunity_Ct"]
+        fields += ["GS_Last_Updated", "Account_ID", "CS_Tier", "Prev_CS_Tier", "Licenses"]
+        fields += ["account__c", "Products", "ACV", "Opportunity_Ct"]
         fields += ["Next_Renewal", "Next_Renewal_Qt", "total_cases_30d", "cbc_cases_30d", "open_cases", "open_cbc_cases"]
         fields += ["Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
         self.db.insert("master", fields, data, del_table=True)
@@ -82,6 +83,7 @@ class summary_data(object):
         fields += ["Ran_Alerts", "Not_Ran_Alerts", "Policy_Applied_Alerts", "Policy_Not_Applied_Alerts"]
         self.db.insert("master", fields, data)
 
+        '''
         # A selection from data science table
         query = """
         select
@@ -106,6 +108,7 @@ class summary_data(object):
         fields += ["Intent___Endgame", "Intent___Sentinelone", "Intent___Microsoft_Defender_ATP", "Searching_For_Solution"]
         fields += ["Previous_Predictive_Churn_Meter", "Predictive_Churn_Meter_Changed", "Indicators_Changed", "MSSP"]
         self.db.insert("master", fields, data)
+        '''
 
     def cse_activity_inserts(self):
         ''' cse timeline activities '''
@@ -115,6 +118,8 @@ class summary_data(object):
         for acct, act_date in data:
             for inst_id in lookup[acct.lower()]:
                 rows.append([inst_id, act_date])
+        for i in rows: print(i)
+        input()
         fields = ["inst_id", "last_cse_timeline"]
         self.db.insert("master", fields, rows)
 
@@ -545,7 +550,7 @@ class summary_data(object):
             """
         fields = [pk, "brag_decrease"]
         data = self.db.execute(query)
-        self.db.insert(table, fields, data)
+        if data: self.db.insert(table, fields, data)
 
     def sensor_versions(self):
         query = """
@@ -667,12 +672,15 @@ class summary_data(object):
             master_table, ma_table = "master", "master_archive"
         elif ma_type == "account":
             master_table, ma_table = "account_master", "account_master_archive"
+        print(ma_type)
         # Delete any entries in the master archive from today
         self.db.execute(f"delete from {ma_table} where date = date();")
         # Check for new columns in master not in the master archive
         m_cols = [i[1] for i in self.db.execute(f"pragma table_info({master_table})")]
         ma_cols = [i[1] for i in self.db.execute(f"pragma table_info({ma_table})")]
+        for i in ma_cols: print(i)
         new_cols = [[x, i] for x, i in enumerate(m_cols) if i not in ma_cols]
+        print(new_cols)
         # Get everything from master_archive and add any new columns
         ma = self.db.execute(f"select * from {ma_table};")
         for xx, i in enumerate(ma):
@@ -719,6 +727,7 @@ class summary_data(object):
         query += "max(csm),"
         query += "max(cse),"
         query += "max(csm_role),"
+        query += "max(cs_tier),"
         query += "max(arr),"
         query += "max(acv),"
         query += "max(Opportunity_Ct),"
@@ -784,6 +793,7 @@ class summary_data(object):
             "csm",
             "cse",
             "csm_role",
+            "cs_tier",
             "arr",
             "acv",
             "opportunity_ct",
