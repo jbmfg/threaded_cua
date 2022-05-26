@@ -2,6 +2,7 @@ import xlsxwriter
 import re
 import datetime
 import time
+from collections import defaultdict
 
 class report(object):
     def __init__(self, db, csm):
@@ -480,6 +481,38 @@ class report(object):
                             results[x][xx] = datetime.datetime.strftime(datetime.datetime.fromtimestamp(results[x][xx]/1000).date(), "%Y-%m-%d")
         header = ["Date"] + [i.replace("___", " - ").replace("_", " ").replace("Perc", "%") for i in self.master_header]
         data += [header] + results + [""]
+
+        # Deployment archive
+        query = f"""
+        select date,
+        os,
+        standard,
+        extended,
+        eol
+        from deployment_archive
+        where inst_id = '{inst_id}'
+        """
+        da_data = self.db.execute(query)
+        data_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+        for row in da_data:
+            date, os, st, ex, eol = row
+            data_dict[date][os]["st"] = st
+            data_dict[date][os]["ex"] = ex
+            data_dict[date][os]["eol"] = eol
+        rows = []
+        header = ["Date"]
+        for date in data_dict:
+            row = [date]
+            for os in data_dict[date]:
+                header.extend([f"{os}(st)", f"{os}(ex)", f"{os}(eol)"])
+                row.extend(
+                    [data_dict[date][os].get("st", 0),
+                     data_dict[date][os].get("ex", 0),
+                     data_dict[date][os].get("eol", 0)]
+                )
+            rows.append(row)
+
+        data += [header] + rows + [""]
 
         if data: self.writerows(sheet, data, bolder=True, linkBool=True)
 

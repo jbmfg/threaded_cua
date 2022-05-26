@@ -118,8 +118,6 @@ class summary_data(object):
         for acct, act_date in data:
             for inst_id in lookup[acct.lower()]:
                 rows.append([inst_id, act_date])
-        for i in rows: print(i)
-        input()
         fields = ["inst_id", "last_cse_timeline"]
         self.db.insert("master", fields, rows)
 
@@ -672,15 +670,12 @@ class summary_data(object):
             master_table, ma_table = "master", "master_archive"
         elif ma_type == "account":
             master_table, ma_table = "account_master", "account_master_archive"
-        print(ma_type)
         # Delete any entries in the master archive from today
         self.db.execute(f"delete from {ma_table} where date = date();")
         # Check for new columns in master not in the master archive
         m_cols = [i[1] for i in self.db.execute(f"pragma table_info({master_table})")]
         ma_cols = [i[1] for i in self.db.execute(f"pragma table_info({ma_table})")]
-        for i in ma_cols: print(i)
         new_cols = [[x, i] for x, i in enumerate(m_cols) if i not in ma_cols]
-        print(new_cols)
         # Get everything from master_archive and add any new columns
         ma = self.db.execute(f"select * from {ma_table};")
         for xx, i in enumerate(ma):
@@ -690,6 +685,25 @@ class summary_data(object):
         data = ma + self.db.execute(query)
         fields = ["Unique_id", "Date"] + [i[1] for i in self.db.execute(f"pragma table_info({master_table});")]
         self.db.insert(f"{ma_table}", fields, data, del_table=True, pk=True, update=False)
+
+    def deployment_archive(self):
+        query = """
+        select
+        date('now'),
+        e.inst_id,
+        e.os,
+        sum(case when sl.support_level = "ST" then 1 else 0 end) as st,
+        sum(case when sl.support_level = "EX" then 1 else 0 end) as ex,
+        sum(case when sl.support_level = "EOL" then 1 else 0 end) as eol,
+        count(*) as total
+        from endpoints e
+        left join sensor_lookup sl on e.sensor_version = sl.version
+        where e.last_contact_time > datetime('now', '-30 day')
+        group by e.inst_id, e.os;
+        """
+        data = self.db.execute(query)
+        fields = ["date", "inst_id", "os", "standard", "extended", "eol", "total"]
+        self.db.insert("deployment_archive", fields, data, del_table=False, pk=False, update=False)
 
     def prod_deployment_trend(self):
         # Delete any data from today
@@ -870,6 +884,7 @@ if __name__ == "__main__":
     report.changes_over_time("master")
     report.master_archive("installation")
     report.master_archive("account")
+    report.deployment_archive()
     report.prod_deployment_trend()
     report.acct_rollup()
     report.cua_brag("account_master")
