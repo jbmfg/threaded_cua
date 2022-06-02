@@ -43,7 +43,11 @@ class summary_data(object):
             for v in list(lookup[os]):
                 if ".x" in v:
                     lookup[os][v.replace(".x", "")] = lookup[os].pop(v)
+        lookup["WIN"] = lookup.pop("psc_win")
+        lookup["MAC"] = lookup.pop("psc_mac")
+        lookup["LIN"] = lookup.pop("psc_lin")
         def eolife(os, v):
+            os = os.replace("psc_", "").upper()
             while len(v) > 0:
                 if v[:-1] in lookup[os]:
                     return lookup[os][v[:-1]]
@@ -872,6 +876,7 @@ if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     report = summary_data(db)
     report.endpoint_lookup()
+    input("stopped")
     report.direct_inserts()
     report.audit_log_inserts()
     report.connector_inserts()
