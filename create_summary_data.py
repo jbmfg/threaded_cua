@@ -746,14 +746,14 @@ class summary_data(object):
         query += "max(cse),"
         query += "max(csm_role),"
         query += "max(cs_tier),"
-        query += "max(arr),"
-        query += "max(acv),"
-        query += "max(Opportunity_Ct),"
+        query += "max(cast(arr as real)),"
+        query += "max(cast(acv as real)),"
+        query += "max(cast(Opportunity_Ct as int)),"
         query += "max(products),"
         query += "max(next_renewal),"
         query += "max(next_renewal_qt),"
-        query += "max(gs_meter),"
-        query += "max(gs_overall),"
+        query += "max(cast(gs_meter as int)),"
+        query += "max(cast(gs_overall) as int),"
         query += "max(gs_last_updated),"
         query += "max(last_cua_cta),"
         query += "max(cua_status),"
@@ -761,7 +761,7 @@ class summary_data(object):
         query += "max(last_wb),"
         query += "max(last_cse_timeline),"
         query += "max(last_login),"
-        query += "min(days_since_login),"
+        query += "min(cast(days_since_login as int)),"
         query += "sum(last_30d_login_count),"
         query += "sum(Last_30d_Connector_Count),"
         query += "group_concat(integrations),"
@@ -876,7 +876,6 @@ if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     report = summary_data(db)
     report.endpoint_lookup()
-    input("stopped")
     report.direct_inserts()
     report.audit_log_inserts()
     report.connector_inserts()
