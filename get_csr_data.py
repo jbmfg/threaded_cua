@@ -5,7 +5,7 @@ import re
 from math import ceil
 import time
 
-CONNECTIONS = 25
+CONNECTIONS = 100
 
 class csr_data(object):
     def __init__(self, sfdb, db, csr, new_run=False):
@@ -17,7 +17,7 @@ class csr_data(object):
         self.insts = self.create_customer_table_thread()
 
     def delete_existing_tables(self):
-        del_tables = ["customers", "audit", "kits", "alerts", "endpoints", "dashboards"]
+        del_tables = ["audit", "kits", "alerts", "endpoints", "dashboards", "connectors", "forwarders"]
         #del_tables = ["customers", "audit"]
         #del_tables = []
         for t in del_tables:
@@ -203,7 +203,7 @@ class csr_data(object):
                     ct += 1
                     insert_data.extend(future.result())
                     print(f'result of insert ({future.result()[0][0]}) = {self.db.insert("endpoints", fields, future.result(), pk=False, del_table=False)}')
-                    print(f"Just got back {ct}")
+                    print(f"Endpoints: Just got back {ct}")
         print(f"time to get endpoints = {time.time() - start}")
 
     def get_alerts(self):
@@ -320,7 +320,7 @@ class csr_data(object):
             for future in concurrent.futures.as_completed(future_to_url):
                 ct += 1
                 iid = future_to_url[future]
-                print(f"just got back alerts #{ct} - {iid}")
+                print(f"Alerts: just got back alerts #{ct} - {iid}")
                 #insert_data.extend(future.result())
                 self.db.insert("alerts", fields, future.result(), pk=False, del_table=False)
 
@@ -418,8 +418,33 @@ class csr_data(object):
             for future in concurrent.futures.as_completed(future_to_url):
                 ct += 1
                 iid = future_to_url[future]
-                print(f"just got back #{ct} - {iid}")
+                print(f"Connectors: just got back #{ct} - {iid}")
                 self.db.insert("connectors", fields, future.result(), pk=False, del_table=False)
+
+    def get_forwarders(self):
+        def return_forwarders(row, tries=3):
+            inst_id, prod, org_key = row[0], row[1], row[2]
+            r = self.csr[prod].request(f"/data_forwarder/v2/orgs/{org_key}/configs")
+            if r.status_code == 200:
+                response = r.json()
+            results = []
+            for i in response:
+                results.append([inst_id] + [v for v in i.values()])
+            for i in results:
+                print(i)
+            return results
+        query = "select inst_id, prod, org_key from customers order by inst_id"
+        needs = self.db.execute(query)
+        fields = ["inst_id", "id", "org_key", "name", "enabled", "s3_bucket_name"]
+        fields += ["s3_prefix", "type", "create_time", "update_time"]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=CONNECTIONS) as executor:
+            future_to_url = {executor.submit(return_forwarders, r): r[0] for r in needs}
+            ct = 0
+            for future in concurrent.futures.as_completed(future_to_url):
+                ct += 1
+                iid = future_to_url[future]
+                print(f"Forwarders: just got back #{ct} - {iid}")
+                self.db.insert("forwarders", fields, future.result(), pk=False, del_table=False)
 
     def get_dashboards(self):
         def return_dashboards(row, tries=3):
@@ -482,7 +507,7 @@ class csr_data(object):
             for future in concurrent.futures.as_completed(future_to_url):
                 ct += 1
                 iid = future_to_url[future]
-                print(f"just got back dashboards #{ct} - {iid}")
+                print(f"Dashboards: just got back dashboards #{ct} - {iid}")
                 #insert_data.extend(future.result())
                 self.db.insert("dashboards", fields, future.result(), pk=True, del_table=False)
 
@@ -496,10 +521,12 @@ if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     csr, custs = setup(sfdb)
     print("making customer table")
-    test_run = csr_data(sfdb, db, csr, new_run=True)
+    test_run = csr_data(sfdb, db, csr, new_run=False)
+    print("Getting em")
+    test_run.get_forwarders()
     #test_run.get_endpoints()
     #test_run.get_audit()
     #test_run.get_alerts()
     #test_run.get_kits()
     #test_run.get_connectors()
-    test_run.get_dashboards()
+    #test_run.get_dashboards()

@@ -153,7 +153,7 @@ class summary_data(object):
                 "raytheon",
                 "masergy"
                 ]
-        data = self.db.execute("select inst_id, name from connectors;")
+        data = self.db.execute("select inst_id, name from forwarders UNION select inst_id, name from connectors;")
         data_dict = defaultdict(list)
         for r in data:
             data_dict[r[0]].append(r[1])
@@ -753,7 +753,7 @@ class summary_data(object):
         query += "max(next_renewal),"
         query += "max(next_renewal_qt),"
         query += "max(cast(gs_meter as int)),"
-        query += "max(cast(gs_overall) as int),"
+        query += "max(cast(gs_overall as int)),"
         query += "max(gs_last_updated),"
         query += "max(last_cua_cta),"
         query += "max(cua_status),"
