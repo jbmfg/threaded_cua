@@ -768,7 +768,7 @@ class summary_data(object):
         query += "min(last_added_user),"
         query += "min(Last_Created_Policy),"
         query += "min(last_modified_policy),"
-        query += "sum(licenses),"
+        query += "max(licenses),"
         query += "sum(deployment),"
         query += "round(sum(cast(deployment as real)) / sum(licenses) * 100, 2),"
         query += "sum(last_24_contact),"
