@@ -75,7 +75,7 @@ class summary_data(object):
             data[x][14] = products
         fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "CSM_Role", "GS_Meter", "GS_Overall"]
         fields += ["GS_Last_Updated", "Account_ID", "CS_Tier", "Prev_CS_Tier", "Licenses"]
-        fields += ["account__c", "Products", "ACV", "Opportunity_Ct"]
+        fields += ["account__c", "created_date", "days_to_50perc", "Products", "ACV", "Opportunity_Ct"]
         fields += ["Next_Renewal", "Next_Renewal_Qt", "total_cases_30d", "cbc_cases_30d", "open_cases", "open_cbc_cases"]
         fields += ["Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
         self.db.insert("master", fields, data, del_table=True)
@@ -153,7 +153,8 @@ class summary_data(object):
                 "raytheon",
                 "masergy"
                 ]
-        data = self.db.execute("select inst_id, name from forwarders UNION select inst_id, name from connectors;")
+        #data = self.db.execute("select inst_id, name from forwarders UNION select inst_id, name from connectors;")
+        data = self.db.execute("select inst_id, name from connectors;")
         data_dict = defaultdict(list)
         for r in data:
             data_dict[r[0]].append(r[1])
@@ -768,6 +769,8 @@ class summary_data(object):
         query += "min(last_added_user),"
         query += "min(Last_Created_Policy),"
         query += "min(last_modified_policy),"
+        query += "max(created_date),"
+        query += "max(days_to_50perc),"
         query += "max(licenses),"
         query += "sum(deployment),"
         query += "round(sum(cast(deployment as real)) / sum(licenses) * 100, 2),"
@@ -834,6 +837,8 @@ class summary_data(object):
             "last_added_user",
             "last_created_policy",
             "last_modified_policy",
+            "created_date",
+            "days_to_50perc",
             "licenses",
             "deployment",
             "deployment_perc",

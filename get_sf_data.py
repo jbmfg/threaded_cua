@@ -56,19 +56,16 @@ def get_act_info(sfdb, inst_ids, db):
 
 def get_installation_info(sfdb, inst_ids, db):
     query = f"""
-    select i.id, products = STUFF(
-    (select ', ' + i2.Product_Group__c
-    from edw_tesseract.sbu_ref_sbusfdc.installation__c i2
-    where i2.Account__c = i.Account__c
-    for xml path('')),1,1,'')
+    select i.id,
+    cast(date_parse(i.createddate, '%Y-%m-%dT%H:%i:%S.000+0000') as date),
+    date_diff('day', date_parse(i.createddate, '%Y-%m-%dT%H:%i:%S.000+0000'), cast(i.x50_percent_deployed_date__c as date))
     from edw_tesseract.sbu_ref_sbusfdc.installation__c i
-    where 1=1
-    and i.Account__c in (
-    select a.Account_ID_18_Digits__c
-    from edw_tesseract.sbu_ref_sbusfdc.account a
-    where i.id in ('{"','".join(inst_ids)}'))
-    group by i.id, i.Account__c, i.Product_Group__c
+    where i.id in ('{"','".join(inst_ids)}')
     """
+    data = sfdb.execute(query)
+    fields = ["inst_id", "created_date", "days_to_50perc"]
+    db.insert("sf_data", fields, data)
+
     query = f"""
     select i.id, i.account__c
     from edw_tesseract.sbu_ref_sbusfdc.installation__c i
@@ -164,16 +161,6 @@ def get_case_info(sfdb, inst_ids, db):
         fields = cases[x][0]
         db.insert("sf_data", fields, data)
 
-def get_ds_info(inst_ids, db):
-    file_name = "csm_review--2021-09-20.csv"
-    with open(file_name, "r", encoding="utf8") as f:
-        ds = list(csv.reader(f))
-        fields = ds[0]
-        for x, f in enumerate(fields):
-            fields[x] = f.replace(" ",  "_").replace("-", "_").replace("(", "").replace(")", "")
-        data = ds[1:]
-    db.insert("data_science", fields, data, del_table=True)
-
 def get_cta_info(sfdb, inst_ids, db, cta_type):
     query = f"""
     select a.account_ID_18_Digits__c,
@@ -183,8 +170,6 @@ def get_cta_info(sfdb, inst_ids, db, cta_type):
     where i.id in ('{"','".join(inst_ids)}')
     """
     inst_ids_acct = sfdb.execute(query, dict=True)
-    #for i in inst_ids_acct:
-    #    inst_ids_acct[i] = ", ".join(inst_ids_acct[i])
     accts = list(inst_ids_acct)
     query = f"""
     select account_id,
@@ -247,7 +232,6 @@ if __name__ == "__main__":
     get_installation_info(sfdb, inst_ids, db)
     get_opp_info(sfdb, inst_ids, db)
     get_case_info(sfdb, inst_ids, db)
-    #get_ds_info(inst_ids, db)
     get_cta_info(sfdb, inst_ids, db, "Product Usage Analytics")
     get_cta_info(sfdb, inst_ids, db, "Tech Assessment")
     get_cta_info(sfdb, inst_ids, db, "CSA Whiteboarding")

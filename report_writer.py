@@ -103,19 +103,19 @@ class report(object):
 
             fields = ["Account_Name", "CSM", "CSE", "CS_Tier", "ARR", "ACV", "Products", "Next_Renewal", "Next_Renewal_Qt"]
             fields += ["GS_Meter", "GS_Overall", "GS_Last_Updated", "Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
-            fields += ["Last_CSE_Timeline"]
-            fields += ["CUA_Brag", "Count_of_Violations", "Violations_Triggered", "BRAG_Decrease", "Last_Login"]
-            fields += ["Days_Since_Login", "Last_30d_Login_Count", "Last_30d_Connector_Count", "Integrations", "Last_Added_User"]
-            fields += ["Last_Created_Policy", "Last_Modified_Policy", "Licenses", "Deployment", "Deployment_Perc"]
+            fields += ["last_cse_timeline"]
+            fields += ["CUA_Brag", "Count_of_Violations", "Violations_Triggered", "brag_decrease", "Last_Login"]
+            fields += ["Days_Since_Login", "Last_30d_Login_Count", "Last_30d_Connector_Count"]
+            fields += ["Integrations", "Last_Added_User"]
+            fields += ["Last_Created_Policy", "Last_Modified_Policy", "created_date", "days_to_50perc"]
+            fields += ["Licenses", "Deployment", "Deployment_Perc"]
             fields += ["Last_24_contact", "Last_7d_contact", "Workload_Deployment", "Bypass", "Bypass_Perc"]
-            fields += ["Last_30d_Bypass_Count", "Sensor_Download_Unavailable", "Download_Unavailable_Perc"]
-            fields += ["Sensor_Standard_Support", "Standard_Perc", "Sensor_Extended_Support", "Extended_Perc", "Sensor_EOL_Support"]
+            fields += ["Last_30d_Bypass_Count", "Sensor_Download_Unavailable", "Download_Unavailable_perc"]
+            fields += ["Sensor_Standard_Support", "Standard_Perc", "Sensor_Extended_Support"]
+            fields += ["Extended_Perc", "Sensor_EOL_Support"]
             fields += ["EOL_Perc", "total_cases_30d", "cbc_cases_30d", "open_cases", "open_cbc_cases"]
             fields += ["Open_Alerts", "Dismissed_Alerts", "Terminated_Alerts", "Denied_Alerts", "Allow_and_Log_Alerts"]
             fields += ["Ran_Alerts", "Not_Ran_Alerts", "Policy_Applied_Alerts", "Policy_Not_Applied_Alerts", "Prod", "OrgID"]
-            #fields += ["Predictive_Churn_Meter", "Account_Risk_Factors", "Intent___Cylance", "Intent___Crowdstrike"]
-            #fields += ["Intent___Endgame", "Intent___Sentinelone", "Intent___Microsoft_Defender_ATP", "Searching_For_Solution"]
-            #fields += ["Previous_Predictive_Churn_Meter", "Predictive_Churn_Meter_Changed", "Indicators_Changed", "MSSP"]
             fields += ["Account_ID", "inst_id"]
 
             # Get any new fields and remove them before getting the data (then theyll be put back in)
@@ -126,7 +126,12 @@ class report(object):
 
             fields_txt = ",".join(fields)
             col1url = False if self.csm_q == "%" else True
-            query = f"select {fields_txt} from {ws_name.replace(' ', '_')} where CSM like '{self.csm_q}' order by Account_Name"
+            query = f"""
+            select {fields_txt}
+            from {ws_name.replace(' ', '_')}
+            where CSM like '{self.csm_q}'
+            order by Account_Name
+            """
             data = self.db.execute(query)
 
             # Reinsert the new fields
@@ -147,9 +152,14 @@ class report(object):
                             if data[x][xx] > 612272122559:
                                 data[x][xx] = datetime.datetime.strftime(datetime.datetime.fromtimestamp(data[x][xx]/1000).date(), "%Y-%m-%d")
 
-            header = [i.replace("___", " - ").replace("_", " ").replace("Perc", "%") for i in fields]
+            header = [i.replace("___", " - ").replace("_", " ").replace("Perc", "%").replace("perc", "%") for i in fields]
             header = [i.replace("Count of Violations", "CUA Score") for i in header]
             header = [i.replace("Violations Triggered", "Score Detail") for i in header]
+            header = [i.replace("brag decrease", "BRAG Decrease") for i in header]
+            header = [i.replace("last cse timeline", "Last CSE Timeline") for i in header]
+            for x, i in enumerate(header):
+                if i.islower():
+                    header[x] = i.title()
             data.insert(0, header)
             self.writerows(sheet, data, col1url=col1url, bolder=True)
 
@@ -162,7 +172,7 @@ class report(object):
             percent = self.wb.add_format({'num_format': '0.00"%"'})
             money_cols, percent_cols = [], []
             for h in header:
-                if "%" in h:
+                if "%" in h and h != "Days To 50%":
                     percent_cols.append(header.index(h))
                 elif "ARR" in h or "ACV" in h:
                     money_cols.append(header.index(h))
