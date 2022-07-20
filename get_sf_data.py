@@ -121,7 +121,7 @@ def get_opp_info(sfdb, inst_ids, db):
         return "Unknown"
 
     query = f"""
-    select i.id, sum(o.ACV_Amount__c), count(o.Id), min(o.CloseDate)
+    select i.id, sum(o.ACV_Amount__c), count(o.Id), array_join(array_agg(o.cb_forecast__c), ','), min(o.CloseDate)
     from edw_tesseract.sbu_ref_sbusfdc.opportunity o
     inner join edw_tesseract.sbu_ref_sbusfdc.installation__c i on o.AccountId = i.Account__c
     where o.CloseDate > CURRENT_DATE
@@ -132,8 +132,8 @@ def get_opp_info(sfdb, inst_ids, db):
     """
     data = sfdb.execute(query)
     for x, row in enumerate(data):
-        data[x].append(lookup_q(row[3]))
-    fields = ["inst_id", "acv", "opp_ct", "renewal_date", "renewal_quar"]
+        data[x].append(lookup_q(row[4]))
+    fields = ["inst_id", "acv", "opp_ct", "forcast", "renewal_date", "renewal_quar"]
     db.insert("sf_data", fields, data)
 
 def get_case_info(sfdb, inst_ids, db):
