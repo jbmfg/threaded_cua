@@ -23,7 +23,8 @@ def get_act_info(sfdb, inst_ids, db):
     Health_Scores_Updated__c,
     a.Account_ID_18_Digits__c,
     a.cs_tier__c,
-    a.previous_cs_tier__c
+    a.previous_cs_tier__c,
+    a.csm_meter_comments__c
     from edw_tesseract.sbu_ref_sbusfdc.account a
     inner join edw_tesseract.sbu_ref_sbusfdc.installation__c i on a.Account_ID_18_Digits__c = i.Account__c
     left join edw_tesseract.sbu_ref_sbusfdc.user_sbu csm on a.Assigned_CP__c = csm.Id
@@ -32,7 +33,7 @@ def get_act_info(sfdb, inst_ids, db):
     order by a.name
     """
     data = [[str(x) for x in sublist] for sublist in sfdb.execute(query)]
-    fields = ["inst_id", "account_name", "arr", "csm", "cse", "csm_role", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id", "tier", "previous tier"]
+    fields = ["inst_id", "account_name", "arr", "csm", "cse", "csm_role", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id", "tier", "previous tier", "csm_comments"]
     db.insert("sf_data", fields, data)
 
     query = f"""

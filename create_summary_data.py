@@ -74,7 +74,7 @@ class summary_data(object):
             products = ", ".join(products)
             data[x][14] = products
         fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "CSM_Role", "GS_Meter", "GS_Overall"]
-        fields += ["GS_Last_Updated", "Account_ID", "CS_Tier", "Prev_CS_Tier", "Licenses"]
+        fields += ["GS_Last_Updated", "Account_ID", "CS_Tier", "Prev_CS_Tier", "csm_comments", "Licenses"]
         fields += ["account__c", "created_date", "days_to_50perc", "Products", "ACV", "Opportunity_Ct"]
         fields += ["Next_Renewal", "Next_Renewal_Qt", "total_cases_30d", "cbc_cases_30d", "open_cases", "open_cbc_cases"]
         fields += ["Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
@@ -153,8 +153,7 @@ class summary_data(object):
                 "raytheon",
                 "masergy"
                 ]
-        #data = self.db.execute("select inst_id, name from forwarders UNION select inst_id, name from connectors;")
-        data = self.db.execute("select inst_id, name from connectors;")
+        data = self.db.execute("select inst_id, name from forwarders UNION select inst_id, name from connectors;")
         data_dict = defaultdict(list)
         for r in data:
             data_dict[r[0]].append(r[1])
@@ -747,6 +746,8 @@ class summary_data(object):
         query += "max(cse),"
         query += "max(csm_role),"
         query += "max(cs_tier),"
+        query += "max(prev_cs_tier),"
+        query += "max(csm_comments),"
         query += "max(cast(arr as real)),"
         query += "max(cast(acv as real)),"
         query += "max(cast(Opportunity_Ct as int)),"
@@ -773,7 +774,7 @@ class summary_data(object):
         query += "max(days_to_50perc),"
         query += "max(licenses),"
         query += "sum(deployment),"
-        query += "round(sum(cast(deployment as real)) / sum(licenses) * 100, 2),"
+        query += "round(sum(cast(deployment as real)) / max(licenses) * 100, 2),"
         query += "sum(last_24_contact),"
         query += "sum(last_7d_contact),"
         query += "sum(workload_deployment),"
@@ -815,6 +816,8 @@ class summary_data(object):
             "cse",
             "csm_role",
             "cs_tier",
+            "prev_cs_tier",
+            "csm_comments",
             "arr",
             "acv",
             "opportunity_ct",
