@@ -74,8 +74,9 @@ class summary_data(object):
             products = ", ".join(products)
             data[x][14] = products
         fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "CSM_Role", "GS_Meter", "GS_Overall"]
-        fields += ["GS_Last_Updated", "Account_ID", "CS_Tier", "Prev_CS_Tier", "csm_comments", "Licenses"]
-        fields += ["account__c", "created_date", "days_to_50perc", "Products", "ACV", "Opportunity_Ct"]
+        fields += ["GS_Last_Updated", "Account_ID", "CS_Tier", "Prev_CS_Tier", "csm_comments", "gs_adoption_comments"]
+        fields += ["Licenses"]
+        fields += ["account__c", "created_date", "days_to_50perc", "Products", "ACV", "Opportunity_Ct", "Forecast"]
         fields += ["Next_Renewal", "Next_Renewal_Qt", "total_cases_30d", "cbc_cases_30d", "open_cases", "open_cbc_cases"]
         fields += ["Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
         self.db.insert("master", fields, data, del_table=True)
@@ -369,7 +370,7 @@ class summary_data(object):
         query = f"select {pk} from {table} where cast(Days_Since_Login as real) > 15;"
         rule_eval(query, name, score)
 
-        name = "> 15 days since login"
+        name = "> 30 days since login"
         score = 2
         query = f"select {pk} from {table} where cast(Days_Since_Login as real) > 30;"
         rule_eval(query, name, score)
@@ -494,19 +495,6 @@ class summary_data(object):
         where cast(Last_Added_User as real) < (strftime('%s', 'now') * 1000 - {ms_ago_90d});
         """
         rule_eval(query, name, score)
-
-        # DS
-        '''
-        name = "DS evaluates to red"
-        score = 1
-        query = f"""
-        select m.{pk}
-        from {table} m
-        left join data_science ds on m.Account_ID = ds.AccountSFID
-        where ds.Predictive_Churn_Meter = 'Red';
-        """
-        rule_eval(query, name, score)
-        '''
 
         # Deployment swings
         name = ">10% in deployment counts"
@@ -748,9 +736,11 @@ class summary_data(object):
         query += "max(cs_tier),"
         query += "max(prev_cs_tier),"
         query += "max(csm_comments),"
+        query += "max(gs_adoption_comments),"
         query += "max(cast(arr as real)),"
         query += "max(cast(acv as real)),"
         query += "max(cast(Opportunity_Ct as int)),"
+        query += "max(forecast),"
         query += "max(products),"
         query += "max(next_renewal),"
         query += "max(next_renewal_qt),"
@@ -818,9 +808,11 @@ class summary_data(object):
             "cs_tier",
             "prev_cs_tier",
             "csm_comments",
+            "gs_adoption_comments",
             "arr",
             "acv",
             "opportunity_ct",
+            "forecast",
             "products",
             "next_renewal",
             "next_renewal_qt",

@@ -102,9 +102,9 @@ class report(object):
             sheet = self.wb.add_worksheet(ws_name)
 
             fields = ["Account_Name", "CSM", "CSE", "CS_Tier", "Prev_CS_Tier", "ARR", "ACV", "Products"]
-            fields += ["Next_Renewal", "Next_Renewal_Qt", "Forcast", "GS_Meter", "GS_Overall"]
-            fields += ["GS_Last_Updated", "csm_comments", "Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
-            fields += ["last_cse_timeline"]
+            fields += ["Next_Renewal", "Next_Renewal_Qt", "Forecast", "GS_Meter", "GS_Overall"]
+            fields += ["GS_Last_Updated", "csm_comments", "gs_adoption_comments",  "Last_CUA_CTA", "CUA_Status"]
+            fields += ["Last_TA", "Last_WB", "last_cse_timeline"]
             fields += ["CUA_Brag", "Count_of_Violations", "Violations_Triggered", "brag_decrease", "Last_Login"]
             fields += ["Days_Since_Login", "Last_30d_Login_Count", "Last_30d_Connector_Count"]
             fields += ["Integrations", "Last_Added_User"]
@@ -484,7 +484,7 @@ class report(object):
         for x, row in enumerate(results):
             for xx, cell in enumerate(row):
                 if cell:
-                    if re.match(r"[0-9]+\.[0-9]+", cell):
+                    if re.match(r"^[0-9]+\.[0-9]+$", cell):
                         results[x][xx] = float(cell)
                     elif cell.isnumeric():
                         results[x][xx] = int(cell)
