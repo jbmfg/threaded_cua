@@ -45,10 +45,10 @@ def get_act_info(sfdb, inst_ids, db):
     left join edw_tesseract.sbu_ref_sbusfdc.account a on i1.Account__c = a.Account_ID_18_Digits__c
     where i1.id in ('{"','".join(inst_ids)}')
     and i2.Cb_Defense_Org_ID__c is not NULL
-    and i2.Status__c <> 'Decommissioned'
+    and (i2.Status__c in ('New', 'In-Progress', 'Complete') or i2.status__c is null)
     and i2.Installation_Type__c like '%Subscription%'
     and i2.Cb_Defense_Backend_Instance__c <> 'None'
-    and i2.Normalized_Host_Count__c is not NULL
+    --and i2.Normalized_Host_Count__c is not NULL
     group by i1.id, a.Account__c
     """
     data = [[str(x) for x in sublist] for sublist in sfdb.execute(query)]
@@ -133,7 +133,7 @@ def get_opp_info(sfdb, inst_ids, db):
     data = sfdb.execute(query)
     for x, row in enumerate(data):
         data[x].append(lookup_q(row[4]))
-    fields = ["inst_id", "acv", "opp_ct", "forcast", "renewal_date", "renewal_quar"]
+    fields = ["inst_id", "acv", "opp_ct", "forecast", "renewal_date", "renewal_quar"]
     db.insert("sf_data", fields, data)
 
 def get_case_info(sfdb, inst_ids, db):
@@ -174,12 +174,13 @@ def get_cta_info(sfdb, inst_ids, db, cta_type):
     accts = list(inst_ids_acct)
     query = f"""
     select account_id,
-    max(created_date),
+    max(closed_date),
     case when status in ('New','Work In Progress') then 'Open' else 'Closed' end
     from edw_tesseract.sbu_ref_sbusfdc.gsctadataset
     where reason like '{cta_type}'
     and account_id in ('{"','".join(accts)}')
-    group by account_id, status
+    and status not in ('Closed No Action', 'Closed Unsuccessful', 'Closed Invalid')
+    group by account_id, status, closed_date
     """
     rows = []
     data = sfdb.execute(query)
