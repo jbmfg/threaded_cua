@@ -47,6 +47,7 @@ class csr_data(object):
                 insert_data.append(future.result())
         fields = ["inst_id", "prod", "org_id", "org_key"]
         self.db.insert("customers", fields, insert_data, pk=True, del_table=True)
+        print("DONE GETTING CUSTOMERS")
 
     def get_audit(self):
         def return_audit(row, audit_item, tries=3):
@@ -195,7 +196,7 @@ class csr_data(object):
             for i in range(0, len(lst), n):
                 yield lst[i:i + n]
         chunks = chunk(needs, CONNECTIONS)
-        for c in chunks:
+        for x, c in enumerate(chunks):
             with concurrent.futures.ThreadPoolExecutor(max_workers=CONNECTIONS) as executor:
                 future_to_url = {executor.submit(return_endpoints, r): r[0] for r in c}
                 ct = 0
@@ -203,7 +204,7 @@ class csr_data(object):
                     ct += 1
                     insert_data.extend(future.result())
                     print(f'result of insert ({future.result()[0][0]}) = {self.db.insert("endpoints", fields, future.result(), pk=False, del_table=False)}')
-                    print(f"Endpoints: Just got back {ct}")
+                    print(f"Endpoints: Just got back {ct} of {x} of {len(needs)}")
         print(f"time to get endpoints = {time.time() - start}")
 
     def get_alerts(self):
@@ -427,11 +428,14 @@ class csr_data(object):
             r = self.csr[prod].request(f"/data_forwarder/v2/orgs/{org_key}/configs")
             if r.status_code == 200:
                 response = r.json()
+            elif r.status_code == 404:
+                return [[inst_id] + [""] * 9]
+            else:
+                print(r.status_code)
+                print(bennt)
             results = []
             for i in response:
                 results.append([inst_id] + [v for v in i.values()])
-            for i in results:
-                print(i)
             return results
         query = "select inst_id, prod, org_key from customers order by inst_id"
         needs = self.db.execute(query)
@@ -509,7 +513,12 @@ class csr_data(object):
                 iid = future_to_url[future]
                 print(f"Dashboards: just got back dashboards #{ct} - {iid}")
                 #insert_data.extend(future.result())
-                self.db.insert("dashboards", fields, future.result(), pk=True, del_table=False)
+                try:
+                    self.db.insert("dashboards", fields, future.result(), pk=True, del_table=False)
+                except sqlite3.ProgrammingError:
+                    print(future.result())
+                    print(fields)
+                    raise
 
     def get_everything(self):
         pass
@@ -523,10 +532,10 @@ if __name__ == "__main__":
     print("making customer table")
     test_run = csr_data(sfdb, db, csr, new_run=False)
     print("Getting em")
-    test_run.get_forwarders()
+    #test_run.get_forwarders()
     #test_run.get_endpoints()
     #test_run.get_audit()
     #test_run.get_alerts()
     #test_run.get_kits()
     #test_run.get_connectors()
-    #test_run.get_dashboards()
+    test_run.get_dashboards()

@@ -16,7 +16,6 @@ def setup(tess_db):
     custs = tess_db.execute(query)
 
     prods = list(set([i[1] for i in custs]))
-    print(prods)
     prods.sort()
     # Get Google auth codes from user
     auth_dict = {}
@@ -67,6 +66,8 @@ if __name__ == "__main__":
     csr_getter.get_kits()
     print("Getting Connectors")
     csr_getter.get_connectors()
+    print("Getting Forwarders")
+    csr_getter.get_forwarders()
     print("Getting Dashboards")
     csr_getter.get_dashboards()
     print("Getting Support Data")

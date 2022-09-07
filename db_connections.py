@@ -139,7 +139,11 @@ class sqlite_db(object):
                     cur.execute(query, row)
                 cur.execute("COMMIT")
             return True
-        return data[0]
+        try:
+            return data[0]
+        except IndexError:
+            print(data)
+            raise
 
     def close_db(self):
         self.connection.close()
