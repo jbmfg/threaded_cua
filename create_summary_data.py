@@ -73,7 +73,8 @@ class summary_data(object):
             products[:] = set([p.strip() for p in products])
             products = ", ".join(products)
             data[x][14] = products
-        fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSE", "CSM_Role", "GS_Meter", "GS_Overall"]
+        fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSM_Manager", "CSE", "CSM_Role"]
+        fields += ["GS_Meter", "GS_Overall"]
         fields += ["GS_Last_Updated", "Account_ID", "CS_Tier", "Prev_CS_Tier", "csm_comments", "gs_adoption_comments"]
         fields += ["Licenses"]
         fields += ["account__c", "created_date", "days_to_50perc", "Products", "ACV", "Opportunity_Ct", "Forecast"]
@@ -731,6 +732,7 @@ class summary_data(object):
     def acct_rollup(self):
         query = "select Account_Name,"
         query += "max(csm),"
+        query += "max(csm_manager),"
         query += "max(cse),"
         query += "max(csm_role),"
         query += "max(cs_tier),"
@@ -803,6 +805,7 @@ class summary_data(object):
         fields = [
             "Account_Name",
             "csm",
+            "csm_manager",
             "cse",
             "csm_role",
             "cs_tier",

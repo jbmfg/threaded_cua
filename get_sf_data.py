@@ -16,6 +16,7 @@ def get_act_info(sfdb, inst_ids, db):
     a.name,
     a.ARR__c,
     csm.Name,
+    man.Name,
     cse.Name,
     a.Customer_Success_Manager_Role__c as Tier,
     GS_CSM_Meter_Score__c,
@@ -29,12 +30,13 @@ def get_act_info(sfdb, inst_ids, db):
     from edw_tesseract.sbu_ref_sbusfdc.account a
     inner join edw_tesseract.sbu_ref_sbusfdc.installation__c i on a.Account_ID_18_Digits__c = i.Account__c
     left join edw_tesseract.sbu_ref_sbusfdc.user_sbu csm on a.Assigned_CP__c = csm.Id
+    left join edw_tesseract.sbu_ref_sbusfdc.user_sbu man on csm.managerid = man.id
     left join edw_tesseract.sbu_ref_sbusfdc.user_sbu cse on a.Customer_Success_Engineer__c = cse.Id
     where i.id in ('{"','".join(inst_ids)}')
     order by a.name
     """
     data = [[str(x) for x in sublist] for sublist in sfdb.execute(query)]
-    fields = ["inst_id", "account_name", "arr", "csm", "cse", "csm_role", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id", "tier", "previous tier", "csm_comments", "gs_adoption_comments"]
+    fields = ["inst_id", "account_name", "arr", "csm", "csm_manager", "cse", "csm_role", "gsm_score", "gs_overall", "gs_last_update_date",  "account_id", "tier", "previous tier", "csm_comments", "gs_adoption_comments"]
     db.insert("sf_data", fields, data)
 
     query = f"""
@@ -127,10 +129,14 @@ def get_opp_info(sfdb, inst_ids, db):
     inner join edw_tesseract.sbu_ref_sbusfdc.installation__c i on o.AccountId = i.Account__c
     where o.CloseDate > CURRENT_DATE
     and o."Type" like '%Renewal%'
-    and (position('CBD' IN o.Product_Family__c) > 0 OR position('CBTH' IN o.Product_Family__c) > 0)
+    and (
+    position('CBD' IN o.Product_Family__c) > 0 OR
+    position('CBTH' IN o.Product_Family__c) > 0 OR
+    position('CBWL' IN o.Product_Family__c) > 0)
     and i.id in ('{"','".join(inst_ids)}')
     group by i.id
     """
+    print(query)
     data = sfdb.execute(query)
     for x, row in enumerate(data):
         data[x].append(lookup_q(row[4]))

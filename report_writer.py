@@ -101,9 +101,9 @@ class report(object):
         for ws_name in ["Master", "Account Master"]:
             sheet = self.wb.add_worksheet(ws_name)
 
-            fields = ["Account_Name", "CSM", "CSE", "CS_Tier", "Prev_CS_Tier", "ARR", "ACV", "Products"]
+            fields = ["Account_Name", "CSM", "CSM_Manager", "CSE", "CS_Tier", "Prev_CS_Tier", "ARR", "ACV", "Products"]
             fields += ["Next_Renewal", "Next_Renewal_Qt", "Forecast", "GS_Meter", "GS_Overall"]
-            fields += ["GS_Last_Updated", "csm_comments", "gs_adoption_comments",  "Last_CUA_CTA", "CUA_Status"]
+            fields += ["csm_comments", "gs_adoption_comments",  "Last_CUA_CTA", "CUA_Status"]
             fields += ["Last_TA", "Last_WB", "last_cse_timeline"]
             fields += ["CUA_Brag", "Count_of_Violations", "Violations_Triggered", "brag_decrease", "Last_Login"]
             fields += ["Days_Since_Login", "Last_30d_Login_Count", "Last_30d_Connector_Count"]
@@ -158,6 +158,8 @@ class report(object):
             header = [i.replace("Violations Triggered", "Score Detail") for i in header]
             header = [i.replace("brag decrease", "BRAG Decrease") for i in header]
             header = [i.replace("last cse timeline", "Last CSE Timeline") for i in header]
+            header = [i.replace("csm comments", "CSM Comments") for i in header]
+            header = [i.replace("gs adoption comments", "GS Adoption Comments") for i in header]
             for x, i in enumerate(header):
                 if i.islower():
                     header[x] = i.title()
