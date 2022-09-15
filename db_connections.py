@@ -1,4 +1,3 @@
-import pyodbc
 import json
 import datetime
 import sqlite3
@@ -6,30 +5,6 @@ import trino
 import os
 import sys
 from collections import defaultdict
-
-class sf_connection(object):
-    def __init__(self, db):
-        self.db = db
-        with open("settings.conf", "r") as f:
-            settings = json.load(f)
-        server = settings["Salesforce Server"]
-        if self.db == "ods":
-            db = settings["ODS"]
-        elif self.db == "cta":
-            db = settings["CTA"]
-        conn_str = f"DRIVER={{ODBC Driver 17 for SQL Server}};Server={server};Database={db};Trusted_Connection=yes;"
-        self.conn = pyodbc.connect(conn_str)
-        self.cur = self.conn.cursor()
-
-    def execute(self, query, dict=False):
-        data = self.cur.execute(query).fetchall()
-        if dict:
-            if len(data[0]) == 2:
-                d = defaultdict(list)
-                for r in data:
-                    d[r[0]].append(r[1])
-                return d
-        return [list(i) for i in data]
 
 class sqlite_db(object):
     def __init__(self, db_file, **kwargs):
