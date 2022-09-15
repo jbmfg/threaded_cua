@@ -47,7 +47,6 @@ class csr_data(object):
                 insert_data.append(future.result())
         fields = ["inst_id", "prod", "org_id", "org_key"]
         self.db.insert("customers", fields, insert_data, pk=True, del_table=True)
-        print("DONE GETTING CUSTOMERS")
 
     def get_audit(self):
         def return_audit(row, audit_item, tries=3):
@@ -113,17 +112,17 @@ class csr_data(object):
             new = time.time()
             r = self.csr[prod].request(f"/appservices/v6/orgs/{org_key}/devices/_search", pd=pd)
             if not r:
-                return [[inst_id] + ["TO"] * 11]
+                return [[inst_id] + ["TO"] * 15]
             elif len(r.content) < 10:
                 # Most likely this installation has the wrong prod in sf
                 # But sometimes something else happens that breaks the returned result from making it into futures.results()
-                return [[inst_id] + ["NA"] * 11]
+                return [[inst_id] + ["NA"] * 15]
             elif r.status_code == 200:
                 print(f"time to make first call = {time.time() - new} - {r.status_code}, {inst_id}")
                 response = r.json()
                 total_endpoints = response["num_found"]
                 if total_endpoints == 0:
-                    return [[inst_id] + ["No deployment"] * 13]
+                    return [[inst_id] + ["No deployment"] * 15]
                 results = [
                         [inst_id,
                         i["id"],
@@ -138,7 +137,9 @@ class csr_data(object):
                         i["last_reported_time"],
                         i["sensor_out_of_date"],
                         i["last_contact_time"],
-                        i["os"]]
+                        i["os"],
+                        i["av_vdf_version"],
+                        i["av_engine"]]
                         for i in response["results"]
                         ]
                 if total_endpoints > req_rows:
@@ -152,22 +153,24 @@ class csr_data(object):
                             return results
                         elif r.status_code == 200:
                             results += [
-                                    [inst_id,
-                                    i["id"],
-                                    i["sensor_version"],
-                                    i["deployment_type"],
-                                    i["os_version"],
-                                    i["organization_name"],
-                                    i["status"],
-                                    i["registered_time"],
-                                    i["organization_id"],
-                                    i["deregistered_time"],
-                                    i["last_reported_time"],
-                                    i["sensor_out_of_date"],
-                                    i["last_contact_time"],
-                                    i["os"]]
-                                    for i in r.json()["results"]
-                                    ]
+                                [inst_id,
+                                i["id"],
+                                i["sensor_version"],
+                                i["deployment_type"],
+                                i["os_version"],
+                                i["organization_name"],
+                                i["status"],
+                                i["registered_time"],
+                                i["organization_id"],
+                                i["deregistered_time"],
+                                i["last_reported_time"],
+                                i["sensor_out_of_date"],
+                                i["last_contact_time"],
+                                i["os"],
+                                i["av_vdf_version"],
+                                i["av_engine"]]
+                                for i in r.json()["results"]
+                                ]
                 print(len(results),  time.time() - start, results[0][0])
                 return results
         query = "select distinct inst_id from endpoints;"
@@ -176,20 +179,22 @@ class csr_data(object):
         data = self.db.execute(query)
         needs = [row for row in data if row[0] not in already_inserted]
         fields = [
-                "inst_id",
-                "id",
-                "sensor_version",
-                "deployment_type",
-                "os_version",
-                "org_name",
-                "status",
-                "reg_time",
-                "org_id",
-                "dereg_time",
-                "last_reported_time",
-                "sensor_ood",
-                "last_contact_time",
-                "os"
+            "inst_id",
+            "id",
+            "sensor_version",
+            "deployment_type",
+            "os_version",
+            "org_name",
+            "status",
+            "reg_time",
+            "org_id",
+            "dereg_time",
+            "last_reported_time",
+            "sensor_ood",
+            "last_contact_time",
+            "os",
+            "av_vdf_version",
+            "av_engine"
                 ]
         insert_data = []
         def chunk(lst, n):
@@ -498,7 +503,6 @@ class csr_data(object):
         query = 'select inst_id, prod, org_id from customers where org_key != "";'
         data = self.db.execute(query)
         needs = [row for row in data if row[0] not in already_inserted]
-        print(needs)
         fields = ["inst_id", "pup_count", "pup_perc", "pup_perc_change"]
         fields += ["non_malware_count", "non_malware_perc", "non_malware_perc_change"]
         fields += ["unknown_count", "unknown_perc", "unknown_perc_change"]
