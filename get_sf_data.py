@@ -136,7 +136,6 @@ def get_opp_info(sfdb, inst_ids, db):
     and i.id in ('{"','".join(inst_ids)}')
     group by i.id
     """
-    print(query)
     data = sfdb.execute(query)
     for x, row in enumerate(data):
         data[x].append(lookup_q(row[4]))
@@ -159,7 +158,9 @@ def get_case_info(sfdb, inst_ids, db):
             'Cb Defense for VMware',
             'Cb ThreatHunter',
             'Cb ThreatSight',
-            'CB Workload') then 1 else 0 end) as cbc_count
+            'CB Workload',
+            'Carbon Black Endpoint Advanced,Carbon Black Endpoint Enterprise,Carbon Black Endpoint Standard,Cb Defense') 
+            then 1 else 0 end) as cbc_count
         from edw_tesseract.sbu_ref_sbusfdc.installation__c i
         left join edw_tesseract.sbu_ref_sbusfdc.case_sbu c on i.Account__c = c.AccountId
         where i.Id in ('{"','".join(inst_ids)}')
