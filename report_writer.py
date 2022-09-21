@@ -578,7 +578,7 @@ class report(object):
         query = "select cse, inst_id from sf_data where cse != 'None';"
         cse_dict = self.db.execute(query, dict=True)
         for cse in cse_dict:
-            wb = xlsxwriter.Workbook("customer_usage_{}.xlsx".format(cse.title()))
+            self.wb = xlsxwriter.Workbook("customer_usage_{}.xlsx".format(cse.title()))
 
             # Regular master
             query = f"""
@@ -587,7 +587,7 @@ class report(object):
             where cse = '{cse.title()}';
             """
             data = self.db.execute(query)
-            sheet = self.write_masterlike_data(wb, "Master", data)
+            sheet = self.write_masterlike_data(self.wb, "Master", data)
 
             # Reds only
             query = f"""
@@ -597,7 +597,7 @@ class report(object):
             and CUA_Brag = 'Red';
             """
             data = self.db.execute(query)
-            sheet = self.write_masterlike_data(wb, "Reds", data)
+            sheet = self.write_masterlike_data(self.wb, "Reds", data)
 
             # Yellows only
             query = f"""
@@ -607,8 +607,15 @@ class report(object):
             and CUA_Brag = 'Yellow';
             """
             data = self.db.execute(query)
-            sheet = self.write_masterlike_data(wb, "Yellows", data)
-            wb.close()
+            sheet = self.write_masterlike_data(self.wb, "Yellows", data)
+            
+            query = f"select inst_id, account_name from master where cse like '{cse}' order by account_name"
+            self.accounts = [[x] + i for x, i in enumerate(self.db.execute(query))]
+            printProgressBar(0, len(self.accounts))
+            for x, account in enumerate(self.accounts):
+                printProgressBar(x+1, len(self.accounts))
+                self.account_report(account)
+            self.wb.close()
 
 def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
     """
