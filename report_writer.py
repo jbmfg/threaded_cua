@@ -110,7 +110,7 @@ class report(object):
             fields += ["Integrations", "Last_Added_User"]
             fields += ["Last_Created_Policy", "Last_Modified_Policy", "created_date", "days_to_50perc"]
             fields += ["Licenses", "Deployment", "Deployment_Perc"]
-            fields += ["Last_24_contact", "Last_7d_contact", "Workload_Deployment", "Bypass", "Bypass_Perc"]
+            fields += ["Last_7d_contact", "Last_24_contact", "Workload_Deployment", "Bypass", "Bypass_Perc"]
             fields += ["Last_30d_Bypass_Count", "Sensor_Download_Unavailable", "Download_Unavailable_perc"]
             fields += ["Sensor_Standard_Support", "Standard_Perc", "Sensor_Extended_Support"]
             fields += ["Extended_Perc", "Sensor_EOL_Support"]
