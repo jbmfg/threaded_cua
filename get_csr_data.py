@@ -107,7 +107,7 @@ class csr_data(object):
                         "last_contact_time": {"range": "-31d"}},
                     "rows": req_rows,
                     "start": 0,
-                    "sort": [{"field": "last_contact_time", "order": "asc"}]
+                    "sort": [{"field": "last_contact_time", "order": "desc"}]
                     }
             new = time.time()
             r = self.csr[prod].request(f"/appservices/v6/orgs/{org_key}/devices/_search", pd=pd)
