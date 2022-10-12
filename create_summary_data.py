@@ -76,7 +76,7 @@ class summary_data(object):
         fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSM_Manager", "CSE", "CSM_Role"]
         fields += ["GS_Meter", "GS_Overall"]
         fields += ["GS_Last_Updated", "Account_ID", "CS_Tier", "Prev_CS_Tier", "csm_comments", "gs_adoption_comments"]
-        fields += ["Licenses"]
+        fields += ["CSE Email", "Licenses"]
         fields += ["account__c", "created_date", "days_to_50perc", "Products", "ACV", "Opportunity_Ct", "Forecast"]
         fields += ["Next_Renewal", "Next_Renewal_Qt", "total_cases_30d", "cbc_cases_30d", "open_cases", "open_cbc_cases"]
         fields += ["Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
@@ -457,6 +457,11 @@ class summary_data(object):
         name = "Deployment < 75%"
         score = 1
         query = f"select {pk} from {table} where cast(Deployment_Perc as real) <= 75;"
+        rule_eval(query, name, score)
+
+        name = "Deployment = 0"
+        score = 10
+        query = f"select {pk} from {table} where Deployment = 0;"
         rule_eval(query, name, score)
 
         # Policy changes
