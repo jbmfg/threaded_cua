@@ -101,6 +101,7 @@ if __name__ == "__main__":
     for q in queries: db.execute(q)
 
     cua = report(db, "all")
+    cua = report(db, "cse")
     csms = [i[0] for i in db.execute("select distinct csm from master;")]
     for csm in csms:
         cua = report(db, csm)

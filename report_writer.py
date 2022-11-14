@@ -17,9 +17,9 @@ class report(object):
         if self.csm == "all":
             self.deployment_trend()
             self.deployment_trend_perc()
+        elif self.csm == "cse":
             self.cse_report()
-        if self.csm != "all":
-            pass
+        elif self.csm != "all":
             query = f"select inst_id, account_name from master where csm like '{self.csm_q}' order by account_name"
             self.accounts = [[x] + i for x, i in enumerate(self.db.execute(query))]
             printProgressBar(0, len(self.accounts))
@@ -592,6 +592,7 @@ class report(object):
         query = "select cse, inst_id from sf_data where cse != 'None';"
         cse_dict = self.db.execute(query, dict=True)
         for cse in cse_dict:
+            print(f"Writing report for {cse.title()}")
             self.wb = xlsxwriter.Workbook("customer_usage_{}.xlsx".format(cse.title()))
 
             # Regular master
@@ -656,6 +657,7 @@ if __name__ == "__main__":
     from db_connections import sqlite_db
     db = sqlite_db("cua.db")
     cua = report(db, "all")
+    cua = report(db, "cse")
     csms = [i[0] for i in db.execute("select distinct csm from master;")]
     for csm in csms:
         print(f"Writing report for {csm}")
