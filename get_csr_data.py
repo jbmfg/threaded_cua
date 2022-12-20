@@ -2,6 +2,7 @@ import concurrent.futures
 import requests
 import json
 import re
+import sqlite3
 from math import ceil
 import time
 
@@ -51,7 +52,6 @@ class csr_data(object):
     def get_audit(self):
         def return_audit(row, audit_item, tries=3):
             inst_id, prod, org_id = row[0], row[1], row[2]
-            print(f"Audit - {inst_id}")
             pd = {
                     "version": "1",
                     "fromRow": 1,
@@ -89,11 +89,14 @@ class csr_data(object):
         fields = ["inst_id", "user", "event_time", "description"]
         insert_data = []
         for ai in audit_items:
+            ct = 0
             with concurrent.futures.ThreadPoolExecutor(max_workers=CONNECTIONS) as executor:
                 future_to_url = (executor.submit(return_audit, r, ai) for r in needs)
                 for future in concurrent.futures.as_completed(future_to_url):
+                    ct += 1
                     #insert_data.extend(future.result())
                     self.db.insert("audit", fields, future.result(), pk=False, del_table=False)
+                    print(f"Audit - {ct} of {len(needs)}")
 
     def get_endpoints(self):
         start= time.time()
@@ -494,8 +497,14 @@ class csr_data(object):
             metrics = ["count", "percentage", "percentageChange"]
             results = [inst_id]
             for tt in threat_types:
-                for m in metrics:
-                    results.append(response["threatSummary"]["ATTACKS_STOPPED"][tt][m])
+                if tt in response["threatSummary"]["ATTACKS_STOPPED"]:
+                    for m in metrics:
+                        if m in response["threatSummary"]["ATTACKS_STOPPED"][tt]:
+                            results.append(response["threatSummary"]["ATTACKS_STOPPED"][tt][m])
+                        else:
+                            results.append(0)
+                else:
+                    results.extend([0, 0, 0])
             return [results]
 
         query = "select distinct inst_id from dashboards;"
@@ -534,12 +543,14 @@ if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
     csr, custs = setup(sfdb)
     print("making customer table")
-    test_run = csr_data(sfdb, db, csr, new_run=False)
+    test_run = csr_data(sfdb, db, csr, new_run=True)
     print("Getting em")
-    #test_run.get_forwarders()
-    #test_run.get_endpoints()
-    #test_run.get_audit()
-    #test_run.get_alerts()
-    #test_run.get_kits()
-    #test_run.get_connectors()
+    test_run.get_alerts()
+    input("Stop HERE!")
+    input()
+    test_run.get_forwarders()
     test_run.get_dashboards()
+    test_run.get_endpoints()
+    test_run.get_audit()
+    test_run.get_kits()
+    test_run.get_connectors()
