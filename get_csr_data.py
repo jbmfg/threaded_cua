@@ -4,6 +4,7 @@ import json
 import re
 from math import ceil
 import time
+import sqlite3
 
 CONNECTIONS = 100
 
