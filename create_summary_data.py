@@ -121,11 +121,13 @@ class summary_data(object):
         lookup = self.db.execute("select account_name, inst_id from master;", dict=True)
         data = self.db.execute("select account, max(activity_date) from cse_activity group by account;")
         rows = []
+        insts = []
         for acct, act_date in data:
             for inst_id in lookup[acct.lower()]:
+                insts.append(inst_id)
                 rows.append([inst_id, act_date])
         fields = ["inst_id", "last_cse_timeline"]
-        self.db.insert("master", fields, rows)
+        self.db.insert("master", fields, rows, pk=True, del_table=True)
 
     def connector_inserts(self):
         ''' Mainly looking for integrations by parsing the connector names'''
@@ -888,11 +890,11 @@ if __name__ == "__main__":
     report.audit_log_inserts()
     report.connector_inserts()
     report.endpoint_inserts()
+    report.cse_activity_inserts()
     report.cua_brag("master")
     report.sensor_versions()
     report.os_versions()
     report.deployment_summary()
-    report.cse_activity_inserts()
     report.changes_over_time("master")
     report.master_archive("installation")
     report.master_archive("account")
