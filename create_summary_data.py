@@ -127,7 +127,7 @@ class summary_data(object):
                 insts.append(inst_id)
                 rows.append([inst_id, act_date])
         fields = ["inst_id", "last_cse_timeline"]
-        self.db.insert("master", fields, rows, pk=True, del_table=True)
+        self.db.insert("master", fields, rows, pk=True, del_table=False)
 
     def connector_inserts(self):
         ''' Mainly looking for integrations by parsing the connector names'''
