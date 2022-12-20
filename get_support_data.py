@@ -29,6 +29,9 @@ def get_support_data(db):
                     levels += [[os] + items]
     for x, row in enumerate(levels):
         for xx, ri in enumerate(row):
+            if not ri:
+                levels[x][xx] = "None"
+                continue
             # First two items are os and version
             if xx < 2: continue
             # Parse the date fields
@@ -38,16 +41,16 @@ def get_support_data(db):
                 year = f"20{year}"
             mon_year = f"{mon} {year}"
             mon_year = f"{year}-{mon}-01"
-            levels[x][xx] = dateparser.parse(mon_year).date().isoformat()
+            levels[x][xx] = dateparser.parse(mon_year, settings={'TIMEZONE': 'UTC'}).date().isoformat()
     fields = ["Product", "Release", "Enter Standard", "Enter Extended", "Enter End of Life"]
 
     # Calculate where the support is right now
     now = datetime.datetime.now()
     date_format = "%Y-%m-%d"
     for x, r in enumerate(levels):
-        levels[x][2] = datetime.datetime.strptime(r[2], date_format)
-        levels[x][3] = datetime.datetime.strptime(r[3], date_format)
-        levels[x][4] = datetime.datetime.strptime(r[4], date_format)
+        levels[x][2] = "None" if r[2] == "None" else datetime.datetime.strptime(r[2], date_format)
+        levels[x][3] = "None" if r[3] == "None" else datetime.datetime.strptime(r[3], date_format)
+        levels[x][4] = "None" if r[4] == "None" else datetime.datetime.strptime(r[4], date_format)
         # Just the dates
         sdates = r[2:]
         if not isinstance(sdates[2], str) and now > sdates[2]:
@@ -56,6 +59,9 @@ def get_support_data(db):
             lvl = "EX"
         elif not isinstance(sdates[0], str) and now > sdates[0]:
             lvl = "ST"
+        elif not isinstance(sdates[0], str) and now < sdates[0]:
+            # Version hasnt releassed yet, PM just got ahead of themselves and added the version to the support page
+            lvl = "Unreleased"
         levels[x].append(lvl)
 
     fields = ["os", "version", "standard", "extended", "eol", "current_level"]

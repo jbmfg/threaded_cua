@@ -76,7 +76,7 @@ class summary_data(object):
         fields = ["inst_id", "Prod", "OrgID", "Account_Name", "ARR", "CSM", "CSM_Manager", "CSE", "CSM_Role"]
         fields += ["GS_Meter", "GS_Overall"]
         fields += ["GS_Last_Updated", "Account_ID", "CS_Tier", "Prev_CS_Tier", "csm_comments", "gs_adoption_comments"]
-        fields += ["Licenses"]
+        fields += ["CSE Email", "Licenses"]
         fields += ["account__c", "created_date", "days_to_50perc", "Products", "ACV", "Opportunity_Ct", "Forecast"]
         fields += ["Next_Renewal", "Next_Renewal_Qt", "total_cases_30d", "cbc_cases_30d", "open_cases", "open_cbc_cases"]
         fields += ["Last_CUA_CTA", "CUA_Status", "Last_TA", "Last_WB"]
@@ -121,11 +121,13 @@ class summary_data(object):
         lookup = self.db.execute("select account_name, inst_id from master;", dict=True)
         data = self.db.execute("select account, max(activity_date) from cse_activity group by account;")
         rows = []
+        insts = []
         for acct, act_date in data:
             for inst_id in lookup[acct.lower()]:
+                insts.append(inst_id)
                 rows.append([inst_id, act_date])
         fields = ["inst_id", "last_cse_timeline"]
-        self.db.insert("master", fields, rows)
+        self.db.insert("master", fields, rows, pk=True, del_table=False)
 
     def connector_inserts(self):
         ''' Mainly looking for integrations by parsing the connector names'''
@@ -459,6 +461,11 @@ class summary_data(object):
         query = f"select {pk} from {table} where cast(Deployment_Perc as real) <= 75;"
         rule_eval(query, name, score)
 
+        name = "Deployment = 0"
+        score = 10
+        query = f"select {pk} from {table} where Deployment = 0;"
+        rule_eval(query, name, score)
+
         # Policy changes
         # These dates are stored in epoch(ms), 90d = 7.776e+8
         ms_ago_90d = 90 * 24 * 60 * 60 * 1000
@@ -781,10 +788,10 @@ class summary_data(object):
         query += "round(sum(cast(sensor_extended_support as real)) / sum(deployment) * 100, 2),"
         query += "sum(Sensor_EOL_Support),"
         query += "round(sum(cast(sensor_eol_support as real)) / sum(deployment) * 100, 2),"
-        query += "sum(total_cases_30d),"
-        query += "sum(cbc_cases_30d),"
-        query += "sum(open_cases),"
-        query += "sum(open_cbc_cases),"
+        query += "max(total_cases_30d),"
+        query += "max(cbc_cases_30d),"
+        query += "max(open_cases),"
+        query += "max(open_cbc_cases),"
         query += "sum(open_alerts),"
         query += "sum(dismissed_alerts),"
         query += "sum(terminated_alerts),"
@@ -883,11 +890,11 @@ if __name__ == "__main__":
     report.audit_log_inserts()
     report.connector_inserts()
     report.endpoint_inserts()
+    report.cse_activity_inserts()
     report.cua_brag("master")
     report.sensor_versions()
     report.os_versions()
     report.deployment_summary()
-    report.cse_activity_inserts()
     report.changes_over_time("master")
     report.master_archive("installation")
     report.master_archive("account")

@@ -17,8 +17,9 @@ class report(object):
         if self.csm == "all":
             self.deployment_trend()
             self.deployment_trend_perc()
+        elif self.csm == "cse":
             self.cse_report()
-        if self.csm != "all":
+        elif self.csm != "all":
             query = f"select inst_id, account_name from master where csm like '{self.csm_q}' order by account_name"
             self.accounts = [[x] + i for x, i in enumerate(self.db.execute(query))]
             printProgressBar(0, len(self.accounts))
@@ -390,7 +391,7 @@ class report(object):
         join sensor_lookup sl on e.sensor_version = sl.version
         where e.inst_id = '{inst_id}'
         and e.last_contact_time > datetime('now', '-30 day')
-        group by e.os_version, sl.dl_available, sl.support_level
+        group by e.os_version
         order by e.os_version;
         """
         header = ["OS", "Bypass", "Active", "Total"]
@@ -473,9 +474,22 @@ class report(object):
         header = ["Date", "Login Count", "Bypass Count", "All in Bypass", "Connector Logins"]
         data += [header] + [[dt] + counts_dict[dt] for dt in counts_dict] + [""]
 
+        # AV Engine - not currently used as no good way to display
+        query = f"""
+        select e.av_vdf_version, count(*)
+        from endpoints e 
+        where e.inst_id = '{inst_id}' 
+        and e.last_contact_time > datetime('now', '-30 day')
+        and e.av_vdf_version is not null
+        group by e.av_vdf_version
+        order by e.av_vdf_version;
+        """
+        #results = self.db.execute(query)
+
         # Master Trending
         # Add any new fields into the master archive
-        new_fields = [i for i in self.master_order if i not in [row[1] for row in self.db.execute("pragma table_info(master_archive);")]]
+        existing = [row[1] for row in self.db.execute("pragma table_info(master_archive);")]
+        new_fields = [i for i in self.master_order if i not in existing]
         '''
         input(new_fields)
         for nf in new_fields:
@@ -578,6 +592,7 @@ class report(object):
         query = "select cse, inst_id from sf_data where cse != 'None';"
         cse_dict = self.db.execute(query, dict=True)
         for cse in cse_dict:
+            print(f"Writing report for {cse.title()}")
             self.wb = xlsxwriter.Workbook("customer_usage_{}.xlsx".format(cse.title()))
 
             # Regular master
@@ -608,7 +623,7 @@ class report(object):
             """
             data = self.db.execute(query)
             sheet = self.write_masterlike_data(self.wb, "Yellows", data)
-            
+
             query = f"select inst_id, account_name from master where cse like '{cse}' order by account_name"
             self.accounts = [[x] + i for x, i in enumerate(self.db.execute(query))]
             printProgressBar(0, len(self.accounts))
@@ -642,6 +657,7 @@ if __name__ == "__main__":
     from db_connections import sqlite_db
     db = sqlite_db("cua.db")
     cua = report(db, "all")
+    cua = report(db, "cse")
     csms = [i[0] for i in db.execute("select distinct csm from master;")]
     for csm in csms:
         print(f"Writing report for {csm}")
