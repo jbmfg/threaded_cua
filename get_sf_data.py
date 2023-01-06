@@ -216,7 +216,7 @@ def get_activity(db):
     xlsx_files = [i for i in os.listdir() if i.endswith(".xlsx") and i.startswith("Distinct")]
     data = []
     for f in xlsx_files:
-        wb = openpyxl.load_workbook(f, data_only=True)
+        wb = openpyxl.load_workbook(f, data_only=True, engine="openpyxl")
         s = wb["Mda Sheet"]
         for x, i in enumerate(s.rows):
             account = s.cell(row=x+1, column=1).value
