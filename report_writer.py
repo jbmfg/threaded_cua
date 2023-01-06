@@ -17,6 +17,7 @@ class report(object):
         if self.csm == "all":
             self.deployment_trend()
             self.deployment_trend_perc()
+            self.wb.close()
         elif self.csm == "cse":
             self.cse_report()
         elif self.csm != "all":
@@ -26,7 +27,7 @@ class report(object):
             for x, account in enumerate(self.accounts):
                 printProgressBar(x+1, len(self.accounts))
                 self.account_report(account)
-        self.wb.close()
+            self.wb.close()
 
     def writerows(self, sheet, data, linkBool=False, setwid=True, col1url=False, bolder=False):
         bold = self.wb.add_format({"bold": True})
@@ -599,8 +600,9 @@ class report(object):
             query = f"""
             select {self.master_order_txt}
             from account_master
-            where cse = '{cse.title()}';
+            where lower(cse) = '{cse.lower()}';
             """
+            print(query)
             data = self.db.execute(query)
             sheet = self.write_masterlike_data(self.wb, "Master", data)
 
@@ -608,7 +610,7 @@ class report(object):
             query = f"""
             select {self.master_order_txt}
             from account_master
-            where cse = '{cse.title()}'
+            where lower(cse) = '{cse.lower()}'
             and CUA_Brag = 'Red';
             """
             data = self.db.execute(query)
@@ -618,13 +620,13 @@ class report(object):
             query = f"""
             select {self.master_order_txt}
             from account_master
-            where cse = '{cse.title()}'
+            where lower(cse) = '{cse.lower()}'
             and CUA_Brag = 'Yellow';
             """
             data = self.db.execute(query)
             sheet = self.write_masterlike_data(self.wb, "Yellows", data)
 
-            query = f"select inst_id, account_name from master where cse like '{cse}' order by account_name"
+            query = f"select inst_id, account_name from master where lower(cse) like '{cse.lower()}' order by account_name"
             self.accounts = [[x] + i for x, i in enumerate(self.db.execute(query))]
             printProgressBar(0, len(self.accounts))
             for x, account in enumerate(self.accounts):
