@@ -602,7 +602,6 @@ class report(object):
             from account_master
             where lower(cse) = '{cse.lower()}';
             """
-            print(query)
             data = self.db.execute(query)
             sheet = self.write_masterlike_data(self.wb, "Master", data)
 
