@@ -47,6 +47,8 @@ if __name__ == "__main__":
     print(f"Time to do opp info {time.time() - start}")
     get_sf_data.get_case_info(tess_db, inst_ids, db)
     print(f"Time to do case info {time.time() - start}")
+    get_sf_data.get_new_deployment(tess_db, inst_ids, db)
+    print(f"Time to do new deployment info {time.time() - start}")
     #get_sf_data.get_ds_info(inst_ids, db)
     #print(f"Time to ds info {time.time() - start}")
     get_sf_data.get_cta_info(tess_db, inst_ids, db, "Product Usage Analytics")

@@ -212,11 +212,30 @@ def get_cta_info(sfdb, inst_ids, db, cta_type):
             rows[x] = row[:-1]
     db.insert("sf_data", fields, rows)
 
+def get_new_deployment(sfdb, inst_ids, db):
+    query = f"""
+    select
+    i.id,
+    lic.totaldeployed30days,
+    lic.totaldeployed3days,
+    lic.deploy3daysmonthavg,
+    lic.totaldeployedlastday,
+    lic.totaldeploylastdaymonthavg
+    from edw_tesseract.sbu_ref_sbusfdc.installation__c i
+    left join edw_tesseract.sbu_dh.cbcdeployedlicensesendpoint_f lic 
+        on lic.prodkey = i.cb_defense_backend_instance__c || '|' || i.cb_defense_org_id__c
+    where i.id in ('{"','".join(inst_ids)}')
+    and calendarid = (select max(calendarid) from edw_tesseract.sbu_dh.cbcdeployedlicensesendpoint_f)
+    """
+    data = sfdb.execute(query)
+    fields = ["inst_id", "last_30d_total", "last_3d_total", "last_3d_avg", "last_1d_total", "last_1d_avg"]
+    db.insert("new_deployment", fields, data, pk=True, del_table=True)
+
 def get_activity(db):
     xlsx_files = [i for i in os.listdir() if i.endswith(".xlsx") and i.startswith("Distinct")]
     data = []
     for f in xlsx_files:
-        wb = openpyxl.load_workbook(f, data_only=True, engine="openpyxl")
+        wb = openpyxl.load_workbook(f, data_only=True)
         s = wb["Mda Sheet"]
         for x, i in enumerate(s.rows):
             account = s.cell(row=x+1, column=1).value
@@ -238,6 +257,7 @@ if __name__ == "__main__":
     custs = sfdb.execute(query)
     inst_ids = [i[0] for i in custs]
     initial_insert(db, custs)
+    get_new_deployment(sfdb, inst_ids, db)
     get_act_info(sfdb, inst_ids, db)
     get_activity(db)
     get_installation_info(sfdb, inst_ids, db)

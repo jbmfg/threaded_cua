@@ -89,6 +89,11 @@ class summary_data(object):
         fields += ["Ran_Alerts", "Not_Ran_Alerts", "Policy_Applied_Alerts", "Policy_Not_Applied_Alerts"]
         self.db.insert("master", fields, data)
 
+        query = "select * from new_deployment;"
+        data = self.db.execute(query)
+        fields = ["inst_id", "Last_30d_Total", "Last_3d_Total", "Last_3d_Avg", "Last_1d_Total", "Last_1d_Avg"]
+        self.db.insert("master", fields, data)
+
         '''
         # A selection from data science table
         query = """
@@ -805,7 +810,12 @@ class summary_data(object):
         query += "group_concat(orgid),"
         query += "max(account_id),"
         query += "group_concat(inst_id),"
-        query += "group_concat(account__c)"
+        query += "group_concat(account__c),"
+        query += "sum(Last_30d_Total),"
+        query += "sum(Last_3d_Total),"
+        query += "sum(Last_3d_Avg) / count(inst_id),"
+        query += "sum(Last_1d_Total),"
+        query += "sum(Last_1d_Avg) / count(inst_id)"
         query += "from master "
         query += "group by account_name"
         query += ";"
@@ -878,7 +888,12 @@ class summary_data(object):
             "orgid",
             "account_id",
             "inst_id",
-            "account__c"]
+            "account__c",
+            "Last_30d_Total",
+            "Last_3d_Total",
+            "Last_3d_Avg",
+            "Last_1d_Total",
+            "Last_1d_Avg"]
         data = self.db.execute(query)
         self.db.insert("account_master", fields, data, del_table=True)
 
