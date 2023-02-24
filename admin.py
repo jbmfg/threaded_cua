@@ -9,9 +9,9 @@ def run_cmd(cmd):
     process = subprocess.Popen(cmd, shell=True)
     
 cmds = []
+cmds += ["mv /home/bgoff/onedrive/CSE\ Team\ Shares/CUA/cua.db.zip /home/bgoff/onedrive/CSE\ Team\ Shares/CUA/cua.db.zip.last1"]
 cmds += ["mv cua.db.zip cua.db.zip.last1"]
 cmds += ["zip cua.db.zip cua.db"]
-cmds += ["mv /home/bgoff/onedrive/CSE\ Team\ Shares/CUA/cua.db.zip /home/bgoff/onedrive/CSE\ Team\ Shares/CUA/cua.db.zip.last1"]
 cmds += ["cp cua.db.zip /home/bgoff/onedrive/CSE\ Team\ Shares/CUA/"]
 cmds += ["rm /home/bgoff/onedrive/CSE\ Team\ Shares/CUA/xlsx_files/*"]
 cmds += [f"zip {today}.zip customer_usage*.xlsx Distinct*.xlsx"]

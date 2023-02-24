@@ -72,7 +72,7 @@ class prod_connection(object):
                 print("retrying due to >299\n\n\n\n\n")
                 return self.request(url, pd, tries=tries)
             elif r.status_code > 299:
-                print(f"returning false due to return code > 299 {r.status_code}\n\n\n\n\n\n\n\n\n")
+                print(f"returning false due to return code > 299 {r.status_code}")
                 return False
         return r
 

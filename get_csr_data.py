@@ -21,7 +21,7 @@ class csr_data(object):
     def delete_existing_tables(self):
         del_tables = ["audit", "kits", "alerts", "endpoints", "dashboards", "connectors", "forwarders"]
         #del_tables = ["customers", "audit"]
-        #del_tables = []
+        del_tables = []
         for t in del_tables:
             print(f"deleting table {t}")
             query = f"DROP TABLE IF EXISTS {t};"
@@ -375,7 +375,10 @@ class csr_data(object):
             for i in response["entries"]:
                 if i["connectorType"] == "SIM":
                     if isinstance(i["notificationState"], dict):
-                        last_event = i["notificationState"]["lastSimNotificationKey"]["eventTime"]
+                        if not i["notificationState"]["lastSimNotificationKey"]: 
+                            return [[inst_id] + ["Failed"] * 10]
+                        last_event = i["notificationState"]["lastSimNotificationKey"]["eventTime"] \
+                                if i["notificationState"]["lastSimNotificationKey"]["eventTime"] else ""
                     else:
                         last_event = ""
                 elif i["connectorType"] == "API":
@@ -441,7 +444,7 @@ class csr_data(object):
                 return [[inst_id] + [""] * 9]
             else:
                 print(r.status_code)
-                print(bennt)
+                raise
             results = []
             for i in response:
                 results.append([inst_id] + [v for v in i.values()])

@@ -216,17 +216,21 @@ def get_new_deployment(sfdb, inst_ids, db):
     query = f"""
     select
     i.id,
-    lic.totaldeployed30days,
-    lic.totaldeployed3days,
-    lic.deploy3daysmonthavg,
-    lic.totaldeployedlastday,
-    lic.totaldeploylastdaymonthavg
+    max(lic.totaldeployed30days),
+    max(lic.totaldeployed3days),
+    max(lic.deploy3daysmonthavg),
+    max(lic.totaldeployedlastday),
+    max(lic.totaldeploylastdaymonthavg)
     from edw_tesseract.sbu_ref_sbusfdc.installation__c i
-    left join edw_tesseract.sbu_dh.cbcdeployedlicensesendpoint_f lic 
+    left join edw_tesseract.sbu_dh.cbcdeployedlicensesendpoint_f lic
         on lic.prodkey = i.cb_defense_backend_instance__c || '|' || i.cb_defense_org_id__c
+    left join edw_tesseract.sbu_ref_sbusfdc.account  a on lic.accountsfid = a.Account_ID_18_Digits__c
     where i.id in ('{"','".join(inst_ids)}')
     and calendarid = (select max(calendarid) from edw_tesseract.sbu_dh.cbcdeployedlicensesendpoint_f)
+    and a.cs_tier__c in ('High', 'Medium', 'Low', 'Holding')
+    group by i.id
     """
+    print(query)
     data = sfdb.execute(query)
     fields = ["inst_id", "last_30d_total", "last_3d_total", "last_3d_avg", "last_1d_total", "last_1d_avg"]
     db.insert("new_deployment", fields, data, pk=True, del_table=True)
