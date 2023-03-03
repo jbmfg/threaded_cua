@@ -230,7 +230,6 @@ def get_new_deployment(sfdb, inst_ids, db):
     and a.cs_tier__c in ('High', 'Medium', 'Low', 'Holding')
     group by i.id
     """
-    print(query)
     data = sfdb.execute(query)
     fields = ["inst_id", "last_30d_total", "last_3d_total", "last_3d_avg", "last_1d_total", "last_1d_avg"]
     db.insert("new_deployment", fields, data, pk=True, del_table=True)
@@ -252,6 +251,18 @@ def get_activity(db):
     fields = ["account", "activity_date"]
     db.insert("cse_activity", fields, data, pk=False, del_table=True)
 
+def get_activity_tess(sfdb, db):
+    query = """
+    select a.name, gs.activity_date
+    from edw_tesseract.sbu_ref_sbusfdc.gsactivitytimeline gs
+    left join edw_tesseract.sbu_ref_sbusfdc.account a on gs.account_id = a.account_id_18_digits__c
+    where type_name = 'CSE: Activity'
+    and activity_date > current_timestamp - interval '1' year
+    """
+    data = sfdb.execute(query)
+    fields = ["account", "activity_date"]
+    db.insert("cse_activity", fields, data, pk=False, del_table=True)
+
 if __name__ == "__main__":
     import db_connections
     sfdb = db_connections.tesseract_connection()
@@ -263,7 +274,7 @@ if __name__ == "__main__":
     initial_insert(db, custs)
     get_new_deployment(sfdb, inst_ids, db)
     get_act_info(sfdb, inst_ids, db)
-    get_activity(db)
+    get_activity_tess(sfdb, db)
     get_installation_info(sfdb, inst_ids, db)
     get_opp_info(sfdb, inst_ids, db)
     get_case_info(sfdb, inst_ids, db)
