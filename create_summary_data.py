@@ -899,6 +899,7 @@ class summary_data(object):
 
 if __name__ == "__main__":
     db = db_connections.sqlite_db("cua.db")
+    print("summary data")
     report = summary_data(db)
     report.endpoint_lookup()
     report.direct_inserts()
@@ -906,6 +907,7 @@ if __name__ == "__main__":
     report.connector_inserts()
     report.endpoint_inserts()
     report.cse_activity_inserts()
+    print("brag")
     report.cua_brag("master")
     report.sensor_versions()
     report.os_versions()
