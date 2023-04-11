@@ -140,7 +140,11 @@ def get_opp_info(sfdb, inst_ids, db):
     for x, row in enumerate(data):
         data[x].append(lookup_q(row[4]))
     fields = ["inst_id", "acv", "opp_ct", "forecast", "renewal_date", "renewal_quar"]
-    db.insert("sf_data", fields, data)
+    if data:
+        db.insert("sf_data", fields, data)
+    elif not data:
+        db.insert("sf_data", fields, [[""]*len(fields)])
+
 
 def get_case_info(sfdb, inst_ids, db):
     ''' Get number of open cases, cases in last 30d '''
@@ -231,7 +235,7 @@ def get_new_deployment(sfdb, inst_ids, db):
     group by i.id
     """
     data = sfdb.execute(query)
-    fields = ["inst_id", "last_30d_total", "last_3d_total", "last_3d_avg", "last_1d_total", "last_1d_avg"]
+    fields = ["inst_id", "last_30d_total", "last_3d_total", "last_3d_avg", "peak_daily_consumption", "last_1d_avg"]
     db.insert("new_deployment", fields, data, pk=True, del_table=True)
 
 def get_activity(db):

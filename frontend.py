@@ -24,6 +24,7 @@ def setup(tess_db):
     # Set up the connection to CSR for each prod
     csr = {}
     for prod in auth_dict:
+        print(prod)
         csr[prod] = prod_connection(prod, auth_dict[prod])
     return csr, custs
 

@@ -112,7 +112,7 @@ class report(object):
             fields += ["Integrations", "Last_Added_User"]
             fields += ["Last_Created_Policy", "Last_Modified_Policy", "created_date", "days_to_50perc"]
             fields += ["Licenses", "Deployment", "Deployment_Perc"]
-            fields += ["Last_30d_Total", "Last_3d_Total", "Last_3d_Avg", "Last_1d_Total", "Last_1d_Avg"]
+            fields += ["Last_30d_Total", "Last_3d_Total", "Last_3d_Avg", "peak_daily_consumption", "Last_1d_Avg"]
             fields += ["Last_7d_contact", "Last_24_contact", "Workload_Deployment", "Bypass", "Bypass_Perc"]
             fields += ["Last_30d_Bypass_Count", "Sensor_Download_Unavailable", "Download_Unavailable_perc"]
             fields += ["Sensor_Standard_Support", "Standard_Perc", "Sensor_Extended_Support"]
@@ -661,7 +661,8 @@ if __name__ == "__main__":
     cua = report(db, "all")
     cua = report(db, "cse")
     csms = [i[0] for i in db.execute("select distinct csm from master;")]
+    csms.sort()
     for csm in csms:
         print(f"Writing report for {csm}")
-        cua = report(db, csm)
+        #cua = report(db, csm)
 
