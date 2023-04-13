@@ -220,9 +220,6 @@ def get_new_deployment(sfdb, inst_ids, db):
     query = f"""
     select
     i.id,
-    max(lic.totaldeployed30days),
-    max(lic.totaldeployed3days),
-    max(lic.deploy3daysmonthavg),
     max(lic.totaldeployedlastday),
     max(lic.totaldeploylastdaymonthavg)
     from edw_tesseract.sbu_ref_sbusfdc.installation__c i
@@ -235,7 +232,7 @@ def get_new_deployment(sfdb, inst_ids, db):
     group by i.id
     """
     data = sfdb.execute(query)
-    fields = ["inst_id", "last_30d_total", "last_3d_total", "last_3d_avg", "peak_daily_consumption", "last_1d_avg"]
+    fields = ["inst_id", "peak_daily_consumption", "average_monthly_consumption"]
     db.insert("new_deployment", fields, data, pk=True, del_table=True)
 
 def get_activity(db):
