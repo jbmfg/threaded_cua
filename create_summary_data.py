@@ -91,7 +91,7 @@ class summary_data(object):
 
         query = "select * from new_deployment;"
         data = self.db.execute(query)
-        fields = ["inst_id", "Last_30d_Total", "Last_3d_Total", "Last_3d_Avg", "Last_1d_Total", "Last_1d_Avg"]
+        fields = ["inst_id", "peak_daily_consumption", "average_monthly_consumption"]
         self.db.insert("master", fields, data)
 
         '''
@@ -811,11 +811,8 @@ class summary_data(object):
         query += "max(account_id),"
         query += "group_concat(inst_id),"
         query += "group_concat(account__c),"
-        query += "sum(Last_30d_Total),"
-        query += "sum(Last_3d_Total),"
-        query += "sum(Last_3d_Avg) / count(inst_id),"
-        query += "sum(Last_1d_Total),"
-        query += "sum(Last_1d_Avg) / count(inst_id)"
+        query += "sum(peak_daily_consumption)," 
+        query += "sum(average_monthly_consumption) / count(inst_id) "
         query += "from master "
         query += "group by account_name"
         query += ";"
@@ -889,11 +886,9 @@ class summary_data(object):
             "account_id",
             "inst_id",
             "account__c",
-            "Last_30d_Total",
-            "Last_3d_Total",
-            "Last_3d_Avg",
-            "Last_1d_Total",
-            "Last_1d_Avg"]
+            "peak_daily_consumption", 
+            "average_monthly_consumption"
+            ]
         data = self.db.execute(query)
         self.db.insert("account_master", fields, data, del_table=True)
 
