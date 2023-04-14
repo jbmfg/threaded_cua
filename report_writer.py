@@ -542,7 +542,17 @@ class report(object):
             rows.append(row)
 
         data += [header] + rows + [""]
-
+        
+        # Total deployment
+        query = f"""
+        select substr(date, 0, 8), peak_daily_consumption, Deployment
+        from master_archive
+        where inst_id = '{inst_id}';
+        """
+        results = self.db.execute(query)
+        header = ["Date", "Peak Daily Consumption", "Normalized Count"]
+        data += [header] + results + [""]
+        
         if data: self.writerows(sheet, data, bolder=True, linkBool=True)
 
         # ############# Charts  ################ #
@@ -559,6 +569,8 @@ class report(object):
         osfam_chart = self.multi_series_chart(sheet, sheet_name, stacked_bar, breaks[1]+1, breaks[2], [1, 2, 3], "H21", "OS Families")
         login_chart = self.multi_series_chart(sheet, sheet_name, line, breaks[2]+1, breaks[3], [1,2], "S21", "Login & Bypass Trend")
         connector_chart = self.multi_series_chart(sheet, sheet_name, line, breaks[2]+1, breaks[3], [4], "H40", "Connector Trend")
+        peak_daily_chart = self.multi_series_chart(sheet, sheet_name, line, breaks[3]+2, breaks[4], [39], "S40", "Peak Daily")
+        normalized_chart = self.multi_series_chart(sheet, sheet_name, line, breaks[3]+2, breaks[4], [37], "H59", "Normalized")
 
     def write_masterlike_data(self, wb, sheet_name, data):
         sheet = wb.add_worksheet(sheet_name)
