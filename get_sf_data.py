@@ -133,9 +133,9 @@ def get_opp_info(sfdb, inst_ids, db):
     position('CBD' IN o.Product_Family__c) > 0 OR
     position('CBTH' IN o.Product_Family__c) > 0 OR
     position('CBWL' IN o.Product_Family__c) > 0 OR
-    position('EEDR') > 0 OR
-    position('Workload') > 0 OR
-    position('Endpoint') > 0 OR
+    position('EEDR' IN o.Product_Family__c) > 0 OR
+    position('Workload' IN o.Product_Family__c) > 0 OR
+    position('Endpoint' IN o.Product_Family__c) > 0
     )
     and i.id in ('{"','".join(inst_ids)}')
     group by i.id
