@@ -676,5 +676,5 @@ if __name__ == "__main__":
     csms.sort()
     for csm in csms:
         print(f"Writing report for {csm}")
-        #cua = report(db, csm)
+        cua = report(db, csm)
 
