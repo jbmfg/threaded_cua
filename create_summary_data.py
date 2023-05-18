@@ -528,6 +528,20 @@ class summary_data(object):
         """
         rule_eval(query, name, score)
 
+        # CBC cases > 3 in last 30d
+        name = ">2 cbc cases in 30d"
+        score = 1
+        query = "select cbc_cases_30d from master where cbc_cases_30d >= 3;"
+        rule_eval(query, name, score)
+
+        # Total open cases > 5
+        name = ">5 open cbc cases"
+        score = 1
+        query = "select open_cbc_cases from master where open_cbc_cases > 5"
+        rule_eval(query, name, score)
+
+
+
         # Flatten the dict into a list, add count of violation, add cua status in one go
         def get_color(count):
             if count <= 3:
