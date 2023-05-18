@@ -64,7 +64,6 @@ class summary_data(object):
 
     def direct_inserts(self):
         ''' Those fields thats are easily available from existing tables'''
-
         # Start with sf_data, which is basically everything
         query = "select * from sf_data;"
         data = self.db.execute(query)
@@ -510,15 +509,24 @@ class summary_data(object):
         rule_eval(query, name, score)
 
         # Deployment swings
-        name = ">10% in deployment counts"
+        name = ">10% decrease in deployment counts"
         score = 3
+        last_run = self.db.execute("select distinct date from master_archive order by date desc limit 1;")[0][0]
+        if table == "account_master":
+            m, ma, pk = "account_master", "account_master_archive", "Account_Name"
+        elif table == "master":
+            m, ma, pk = "master", "master_archive", "inst_id"
         query = f"""
-        select m.{pk},
-        cast(m.deployment_perc as real) - cast(ma.deployment_perc as real)
-        from {table} m
-        left join {table}_archive ma on m.inst_id = ma.inst_id
-        where ma.date = (select max(date) from {table}_archive);
+        select
+        m.{pk},
+        (cast(t.deployment as real) - m.deployment)/t.deployment * 100 as decrease_perc
+        from {m} m
+        left join (select inst_id, deployment from {ma} where date = '{last_run}') t
+            on m.inst_id = t.inst_id
+        group by m.{pk}
+        having [decrease_perc]>=10;
         """
+        rule_eval(query, name, score)
 
         # Flatten the dict into a list, add count of violation, add cua status in one go
         def get_color(count):
@@ -534,7 +542,7 @@ class summary_data(object):
         fields = [pk, "Violations_Triggered", "Count_of_Violations", "CUA_Brag"]
         self.db.insert(f"{table}", fields, data)
 
-    def changes_over_time(self, table):
+    def brag_changes_over_time(self, table):
         ''' Look for things in our own evalutaion that should be flagged '''
         if table == "account_master":
             pk = "Account_Name"
@@ -554,6 +562,11 @@ class summary_data(object):
         fields = [pk, "brag_decrease"]
         data = self.db.execute(query)
         if data: self.db.insert(table, fields, data)
+
+    def deployment_changes_over_time(self, table):
+        ''' Look for deployment decreases of 10% or more '''
+        # First get the date of the most recent CUA run from the archive
+        
 
     def sensor_versions(self):
         query = """
@@ -907,11 +920,11 @@ if __name__ == "__main__":
     report.sensor_versions()
     report.os_versions()
     report.deployment_summary()
-    report.changes_over_time("master")
+    report.brag_changes_over_time("master")
     report.master_archive("installation")
     report.master_archive("account")
     report.deployment_archive()
     report.prod_deployment_trend()
     report.acct_rollup()
     report.cua_brag("account_master")
-    report.changes_over_time("account_master")
+    report.brag_changes_over_time("account_master")
