@@ -540,7 +540,11 @@ class summary_data(object):
         query = "select open_cbc_cases from master where open_cbc_cases > 5"
         rule_eval(query, name, score)
 
-
+        # No CBC cases in last 90d
+        name = "0 CBC cases opened in 90d"
+        score = 2
+        query = "select * from cases_90d where cbc_cases_90d = 0;"
+        rule_eval(query, name, score)
 
         # Flatten the dict into a list, add count of violation, add cua status in one go
         def get_color(count):
@@ -576,11 +580,6 @@ class summary_data(object):
         fields = [pk, "brag_decrease"]
         data = self.db.execute(query)
         if data: self.db.insert(table, fields, data)
-
-    def deployment_changes_over_time(self, table):
-        ''' Look for deployment decreases of 10% or more '''
-        # First get the date of the most recent CUA run from the archive
-        
 
     def sensor_versions(self):
         query = """
