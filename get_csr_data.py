@@ -3,11 +3,12 @@ import requests
 import json
 import re
 import sqlite3
-from math import ceil
 import time
 import sqlite3
+from math import ceil
+from requests_futures.sessions import FuturesSession
 
-CONNECTIONS = 100
+CONNECTIONS = 50
 
 class csr_data(object):
     def __init__(self, sfdb, db, csr, new_run=False):
@@ -19,7 +20,7 @@ class csr_data(object):
         self.insts = self.create_customer_table_thread()
 
     def delete_existing_tables(self):
-        del_tables = ["audit", "kits", "alerts", "endpoints", "dashboards", "connectors", "forwarders"]
+        del_tables = ["audit", "kits", "alerts", "endpoints", "dashboards", "connectors", "forwarders", "policy_ids"]
         #del_tables = ["customers", "audit"]
         #del_tables = []
         for t in del_tables:
@@ -50,7 +51,7 @@ class csr_data(object):
         fields = ["inst_id", "prod", "org_id", "org_key"]
         self.db.insert("customers", fields, insert_data, pk=True, del_table=True)
 
-    def get_audit(self):
+    def  get_audit(self):
         def return_audit(row, audit_item, tries=3):
             inst_id, prod, org_id = row[0], row[1], row[2]
             pd = {
@@ -537,6 +538,32 @@ class csr_data(object):
                     print(fields)
                     raise
 
+    def get_policy_ids(self):
+        query = 'select prod, inst_id, org_id from customers;'
+        data = self.db.execute(query, dict=True)
+        for prod in data:
+            urls = [[inst_id, org_id, f"/appservices/v5/orgs/{org_id}/policies/summaries"] for inst_id, org_id in data[prod]]
+            session = self.csr[prod]
+            print(dir(session))
+            future_session = FuturesSession(
+                executor=concurrent.futures.ThreadPoolExecutor(max_workers=CONNECTIONS), session=self.csr[prod].session
+            )
+            futures = [future_session.get(session.backend + url) for inst_id, org_id, url in urls] 
+            c = 0
+            for f in concurrent.futures.as_completed(futures):
+                r = f.result().json()
+                if "list" not in r:
+                    c+=1
+                    print(json.dumps(r, indent=2))
+                    print(f.result().request.url)
+                    continue
+                org_id = str(r["list"][0]["orgId"])
+                inst_id = [i[0] for i in data[prod] if i[1] == org_id][0]
+                rows = [[inst_id, org_id, i["id"], i["numDevices"]] for i in r["list"]]  
+                fields = ["inst_id", "org_id", "policy_id", "num_devices"]
+                db.insert("policy_ids", fields, rows, pk=False, del_table=False)
+
+
     def get_everything(self):
         pass
 
@@ -549,12 +576,13 @@ if __name__ == "__main__":
     print("making customer table")
     test_run = csr_data(sfdb, db, csr, new_run=True)
     print("Getting em")
-    test_run.get_alerts()
+    test_run.get_policy_ids()
     input("Stop HERE!")
     input()
     test_run.get_forwarders()
     test_run.get_dashboards()
     test_run.get_endpoints()
+    test_run.get_alerts()
     test_run.get_audit()
     test_run.get_kits()
     test_run.get_connectors()
