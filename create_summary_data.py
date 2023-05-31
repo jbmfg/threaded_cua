@@ -518,32 +518,31 @@ class summary_data(object):
             m, ma, pk = "master", "master_archive", "inst_id"
         query = f"""
         select
-        m.{pk},
-        (cast(t.deployment as real) - m.deployment)/t.deployment * 100 as decrease_perc
+        m.{pk}
         from {m} m
         left join (select inst_id, deployment from {ma} where date = '{last_run}') t
             on m.inst_id = t.inst_id
         group by m.{pk}
-        having [decrease_perc]>=10;
+        having  (cast(t.deployment as real) - m.deployment)/t.deployment * 100 >= 10;
         """
         rule_eval(query, name, score)
 
         # CBC cases > 3 in last 30d
         name = ">2 cbc cases in 30d"
         score = 1
-        query = "select cbc_cases_30d from master where cbc_cases_30d >= 3;"
+        query = f"select {pk} from master where cbc_cases_30d >= 3;"
         rule_eval(query, name, score)
 
         # Total open cases > 5
         name = ">5 open cbc cases"
         score = 1
-        query = "select open_cbc_cases from master where open_cbc_cases > 5"
+        query = f"select {pk} from master where open_cbc_cases > 5"
         rule_eval(query, name, score)
 
         # No CBC cases in last 90d
         name = "0 CBC cases opened in 90d"
         score = 2
-        query = "select * from cases_90d where cbc_cases_90d = 0;"
+        query = f"select {pk} from cases_90d where cbc_cases_90d = 0;"
         rule_eval(query, name, score)
 
         # Flatten the dict into a list, add count of violation, add cua status in one go
