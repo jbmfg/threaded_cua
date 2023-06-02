@@ -20,7 +20,7 @@ class csr_data(object):
         self.insts = self.create_customer_table_thread()
 
     def delete_existing_tables(self):
-        del_tables = ["audit", "kits", "alerts", "endpoints", "dashboards", "connectors", "forwarders", "policy_ids"]
+        del_tables = ["audit", "kits", "alerts", "endpoints", "dashboards", "connectors", "forwarders", "policy_ids", "rules"]
         #del_tables = ["customers", "audit"]
         #del_tables = []
         for t in del_tables:
@@ -543,25 +543,65 @@ class csr_data(object):
         data = self.db.execute(query, dict=True)
         for prod in data:
             urls = [[inst_id, org_id, f"/appservices/v5/orgs/{org_id}/policies/summaries"] for inst_id, org_id in data[prod]]
-            session = self.csr[prod]
-            print(dir(session))
             future_session = FuturesSession(
                 executor=concurrent.futures.ThreadPoolExecutor(max_workers=CONNECTIONS), session=self.csr[prod].session
             )
-            futures = [future_session.get(session.backend + url) for inst_id, org_id, url in urls] 
+            futures = [future_session.get(self.csr[prod].backend + url) for inst_id, org_id, url in urls] 
             c = 0
             for f in concurrent.futures.as_completed(futures):
-                r = f.result().json()
+                try:
+                    r = f.result().json()
+                except requests.exceptions.ConnectionError:
+                    print("caught a connection error in policy_ids")
+                    continue
                 if "list" not in r:
                     c+=1
-                    print(json.dumps(r, indent=2))
-                    print(f.result().request.url)
                     continue
                 org_id = str(r["list"][0]["orgId"])
                 inst_id = [i[0] for i in data[prod] if i[1] == org_id][0]
-                rows = [[inst_id, org_id, i["id"], i["numDevices"]] for i in r["list"]]  
-                fields = ["inst_id", "org_id", "policy_id", "num_devices"]
+                rows = [[inst_id, org_id, i["id"], i["name"], i["priority_level"], i["numDevices"]] for i in r["list"]]  
+                fields = ["inst_id", "org_id", "policy_id", "policy_name", "priority", "num_devices"]
                 db.insert("policy_ids", fields, rows, pk=False, del_table=False)
+
+    def get_rules(self):
+        query = "select prod, inst_id, org_id from customers;"
+        data = self.db.execute(query, dict=True)
+        for prod in data:
+            urls = []
+            for inst_id, org_id in data[prod]:
+                query = f"select policy_id from policy_ids where inst_id = '{inst_id}'"
+                policy_ids = [i[0] for i in self.db.execute(query)]
+                for pid in policy_ids:
+                    urls.append([inst_id, org_id, f"/appservices/v5/orgs/{org_id}/policies/{pid}"])
+            future_session = FuturesSession(
+                executor=concurrent.futures.ThreadPoolExecutor(max_workers=CONNECTIONS), session=self.csr[prod].session
+            )
+            futures = [future_session.get(self.csr[prod].backend + url) for inst_id, org_id, url in urls] 
+            for f in concurrent.futures.as_completed(futures):
+                rows = []
+                try:
+                    r = f.result().json()
+                except requests.exceptions.JSONDecodeError:
+                    print(f.result().content)
+                    print(f.result().request.url)
+                    print(f.result().status_code)
+                except requests.exceptions.ConnectionError:
+                    print("caught a connection error")
+
+                org_id = str(r["orgId"])
+                inst_id = [i[0] for i in data[prod] if i[1] == org_id][0]
+                name = r["name"]
+                pol_id = r["id"]
+                rules = r["policy"]["rules"]
+                for rule in rules:
+                    op = rule["operation"]
+                    action = rule["action"]
+                    r_type = rule["application"]["type"]
+                    value = rule["application"]["value"]
+                    rows.append([inst_id, pol_id, name, op, action, r_type, value])
+                fields = ["inst_id", "policy_id", "rule_name", "operation", "action", "rule_type", "rule_definition"]
+                db.insert("rules", fields, rows, pk=False)
+
 
 
     def get_everything(self):
@@ -577,8 +617,8 @@ if __name__ == "__main__":
     test_run = csr_data(sfdb, db, csr, new_run=True)
     print("Getting em")
     test_run.get_policy_ids()
-    input("Stop HERE!")
-    input()
+    test_run.get_rules()
+    benjam
     test_run.get_forwarders()
     test_run.get_dashboards()
     test_run.get_endpoints()
