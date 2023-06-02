@@ -35,9 +35,11 @@ class sqlite_db(object):
                     d[r[0]][str(r[1]).lower()][str(r[2]).lower()] = r[3]
                 return d
             if len(data[0]) == 3:
-                d = defaultdict(lambda: defaultdict(int))
+                #d = defaultdict(lambda: defaultdict(int))
+                d = defaultdict(list)
                 for r in data:
-                    d[r[0]][str(r[1]).lower()] = r[2]
+                    #d[r[0]][str(r[1]).lower()] = r[2]
+                    d[r[0]].append([r[1], r[2]])
                 return d
             elif len(data[0]) == 2:
                 d = defaultdict(list)
