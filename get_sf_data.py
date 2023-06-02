@@ -149,13 +149,25 @@ def get_opp_info(sfdb, inst_ids, db):
     elif not data:
         db.insert("sf_data", fields, [[""]*len(fields)])
 
-
 def get_case_info(sfdb, inst_ids, db):
     ''' Get number of open cases, cases in last 30d '''
     cases = [
-        [["inst_id", "total_cases_30d", "cbc_cases_30d"], "from_iso8601_timestamp(c.createddate) > CURRENT_DATE - interval '30' day"],
-        [["inst_id", "open_cases", "open_cbc_cases"], "c.status != 'Closed'"]
+        [
+            ["inst_id", "total_cases_30d", "cbc_cases_30d"],
+            "from_iso8601_timestamp(c.createddate) > CURRENT_DATE - interval '30' day",
+            "sf_data"
+        ],
+        [
+            ["inst_id", "total_cases_90d", "cbc_cases_90d"],
+            "from_iso8601_timestamp(c.createddate) > CURRENT_DATE - interval '90' day",
+            "cases_90d"
+            ],
+        [
+            ["inst_id", "open_cases", "open_cbc_cases"], 
+            "c.status != 'Closed'",
+            "sf_data"
         ]
+    ]
     for x, c in enumerate(cases):
         query = f"""
         select
@@ -177,7 +189,7 @@ def get_case_info(sfdb, inst_ids, db):
         group by i.Id"""
         data = sfdb.execute(query)
         fields = cases[x][0]
-        db.insert("sf_data", fields, data)
+        db.insert(cases[x][2], fields, data)
 
 def get_cta_info(sfdb, inst_ids, db, cta_type):
     query = f"""
