@@ -11,7 +11,7 @@ class sqlite_db(object):
         self.db_file = db_file
         self.connection = sqlite3.connect(self.db_file)
 
-    def execute(self, query, dict=False):
+    def execute(self, query, dict=False, dict_simp=False):
         cursor = self.connection.cursor()
         try:
             cursor.execute(query)
@@ -24,6 +24,13 @@ class sqlite_db(object):
                 print(query)
                 print(f"The error '{e}' occurred")
                 input("    Press Enter to continue")
+        if dict_simp:
+            data = cursor.fetchall()
+            cursor.close()
+            d = defaultdict(list)
+            for r in data:
+                d[r[0]].append([r[1], r[2]])
+            return d
         if dict:
             data = cursor.fetchall()
             cursor.close()
@@ -35,11 +42,11 @@ class sqlite_db(object):
                     d[r[0]][str(r[1]).lower()][str(r[2]).lower()] = r[3]
                 return d
             if len(data[0]) == 3:
-                #d = defaultdict(lambda: defaultdict(int))
-                d = defaultdict(list)
+                d = defaultdict(lambda: defaultdict(int))
+                #d = defaultdict(list)
                 for r in data:
-                    #d[r[0]][str(r[1]).lower()] = r[2]
-                    d[r[0]].append([r[1], r[2]])
+                    d[r[0]][str(r[1]).lower()] = r[2]
+                    #d[r[0]].append([r[1], r[2]])
                 return d
             elif len(data[0]) == 2:
                 d = defaultdict(list)

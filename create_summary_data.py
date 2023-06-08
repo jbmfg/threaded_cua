@@ -541,21 +541,16 @@ class summary_data(object):
 
         # No CBC cases in last 90d
         name = "0 CBC cases opened in 90d"
-        score = 2
-        query = f"select {pk} from cases_90d where cbc_cases_90d = 0;"
-        rule_eval(query, name, score)
-
-        name = "Too many bypass rules"
-        scpre = 2
-        query = f"""
-        select r.{pk}
-        from rules r
-        left join policy_ids p on r.inst_id = p.inst_id and r.policy_id = p.policy_id
-        where r.operation = 'BYPASS_ALL'
-        and p.num_devices > 20
-        group by r.inst_id
-        having count(r.operation) > 50;
-        """
+        score = 1
+        if pk == "Account_Name":
+            query = """
+            select sf.Account_name 
+            from cases_90d c 
+            left join sf_data sf on c.inst_id = sf.inst_id 
+            where c.cbc_cases_90d = 0;
+            """
+        else:
+            query = f"select {pk} from cases_90d where cbc_cases_90d = 0;"
         rule_eval(query, name, score)
 
         # Flatten the dict into a list, add count of violation, add cua status in one go

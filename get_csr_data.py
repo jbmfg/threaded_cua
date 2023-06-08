@@ -21,6 +21,7 @@ class csr_data(object):
 
     def delete_existing_tables(self):
         del_tables = ["audit", "kits", "alerts", "endpoints", "dashboards", "connectors", "forwarders", "policy_ids", "rules"]
+        del_tables += ["cases_90d"]
         #del_tables = ["customers", "audit"]
         #del_tables = []
         for t in del_tables:
@@ -540,7 +541,7 @@ class csr_data(object):
 
     def get_policy_ids(self):
         query = 'select prod, inst_id, org_id from customers;'
-        data = self.db.execute(query, dict=True)
+        data = self.db.execute(query, dict_simp=True)
         for prod in data:
             urls = [[inst_id, org_id, f"/appservices/v5/orgs/{org_id}/policies/summaries"] for inst_id, org_id in data[prod]]
             future_session = FuturesSession(
@@ -559,13 +560,13 @@ class csr_data(object):
                     continue
                 org_id = str(r["list"][0]["orgId"])
                 inst_id = [i[0] for i in data[prod] if i[1] == org_id][0]
-                rows = [[inst_id, org_id, i["id"], i["name"], i["priority_level"], i["numDevices"]] for i in r["list"]]  
+                rows = [[inst_id, org_id, i["id"], i["name"], i["priority"], i["numDevices"]] for i in r["list"]]  
                 fields = ["inst_id", "org_id", "policy_id", "policy_name", "priority", "num_devices"]
                 db.insert("policy_ids", fields, rows, pk=False, del_table=False)
 
     def get_rules(self):
         query = "select prod, inst_id, org_id from customers;"
-        data = self.db.execute(query, dict=True)
+        data = self.db.execute(query, dict_simp=True)
         for prod in data:
             urls = []
             for inst_id, org_id in data[prod]:
@@ -602,8 +603,6 @@ class csr_data(object):
                 fields = ["inst_id", "policy_id", "rule_name", "operation", "action", "rule_type", "rule_definition"]
                 db.insert("rules", fields, rows, pk=False)
 
-
-
     def get_everything(self):
         pass
 
@@ -613,14 +612,14 @@ if __name__ == "__main__":
     sfdb = db_connections.tesseract_connection()
     db = db_connections.sqlite_db("cua.db")
     csr, custs = setup(sfdb)
+    test_run = csr_data(sfdb, db, csr, new_run=False)
     print("making customer table")
-    test_run = csr_data(sfdb, db, csr, new_run=True)
-    print("Getting em")
     test_run.get_policy_ids()
     test_run.get_rules()
+    print("Getting em")
+    test_run.get_dashboards()
     benjam
     test_run.get_forwarders()
-    test_run.get_dashboards()
     test_run.get_endpoints()
     test_run.get_alerts()
     test_run.get_audit()
