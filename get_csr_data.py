@@ -562,7 +562,7 @@ class csr_data(object):
                 inst_id = [i[0] for i in data[prod] if i[1] == org_id][0]
                 rows = [[inst_id, org_id, i["id"], i["name"], i["priority"], i["numDevices"]] for i in r["list"]]  
                 fields = ["inst_id", "org_id", "policy_id", "policy_name", "priority", "num_devices"]
-                db.insert("policy_ids", fields, rows, pk=False, del_table=False)
+                self.db.insert("policy_ids", fields, rows, pk=False, del_table=False)
 
     def get_rules(self):
         query = "select prod, inst_id, org_id from customers;"
@@ -601,7 +601,7 @@ class csr_data(object):
                     value = rule["application"]["value"]
                     rows.append([inst_id, pol_id, name, op, action, r_type, value])
                 fields = ["inst_id", "policy_id", "rule_name", "operation", "action", "rule_type", "rule_definition"]
-                db.insert("rules", fields, rows, pk=False)
+                self.db.insert("rules", fields, rows, pk=False)
 
     def get_everything(self):
         pass
@@ -616,10 +616,10 @@ if __name__ == "__main__":
     print("making customer table")
     test_run.get_policy_ids()
     test_run.get_rules()
-    print("Getting em")
     test_run.get_dashboards()
-    benjam
     test_run.get_forwarders()
+    print("Getting em")
+    benjam
     test_run.get_endpoints()
     test_run.get_alerts()
     test_run.get_audit()

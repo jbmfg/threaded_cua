@@ -90,14 +90,14 @@ if __name__ == "__main__":
     master_builder.sensor_versions()
     master_builder.os_versions()
     master_builder.deployment_summary()
-    master_builder.changes_over_time("master")
+    master_builder.brag_changes_over_time("master")
     master_builder.master_archive("installation")
     master_builder.master_archive("account")
     master_builder.deployment_archive()
     master_builder.prod_deployment_trend()
     master_builder.acct_rollup()
     master_builder.cua_brag("account_master")
-    master_builder.changes_over_time("account_master")
+    master_builder.brag_changes_over_time("account_master")
 
     # create indexes if they dont exist
     queries = [
