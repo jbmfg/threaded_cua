@@ -120,7 +120,11 @@ class sqlite_db(object):
                     fields_txt = "'" + "','".join(fields) + "'"
                     #query = f"INSERT INTO {table} ({','.join(fields)}) VALUES ({qms})"
                     query = f"INSERT INTO {table} ({fields_txt}) VALUES ({qms})"
-                    cur.execute(query, row)
+                    try:
+                        cur.execute(query, row)
+                    except:
+                        print(query, row)
+                        raise
                 cur.execute("COMMIT")
             return True
         try:

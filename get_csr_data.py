@@ -449,6 +449,9 @@ class csr_data(object):
                 raise
             results = []
             for i in response:
+                for nw in ("version_constraint", "current_version"):
+                    if nw in i:
+                        del i[nw]
                 results.append([inst_id] + [v for v in i.values()])
             return results
         query = "select inst_id, prod, org_key from customers order by inst_id"
