@@ -511,21 +511,23 @@ class summary_data(object):
         # Deployment swings
         name = ">10% decrease in deployment counts"
         score = 3
-        last_run = self.db.execute("select distinct date from master_archive order by date desc limit 1;")[0][0]
-        if table == "account_master":
-            m, ma, pk = "account_master", "account_master_archive", "Account_Name"
-        elif table == "master":
-            m, ma, pk = "master", "master_archive", "inst_id"
-        query = f"""
-        select
-        m.{pk}
-        from {m} m
-        left join (select inst_id, deployment from {ma} where date = '{last_run}') t
-            on m.inst_id = t.inst_id
-        group by m.{pk}
-        having  (cast(t.deployment as real) - m.deployment)/t.deployment * 100 >= 10;
-        """
-        rule_eval(query, name, score)
+        last_run = self.db.execute("select distinct date from master_archive order by date desc limit 1;")
+        if last_run:
+            last_run = last_run[0][0]
+            if table == "account_master":
+                m, ma, pk = "account_master", "account_master_archive", "Account_Name"
+            elif table == "master":
+                m, ma, pk = "master", "master_archive", "inst_id"
+            query = f"""
+            select
+            m.{pk}
+            from {m} m
+            left join (select inst_id, deployment from {ma} where date = '{last_run}') t
+                on m.inst_id = t.inst_id
+            group by m.{pk}
+            having  (cast(t.deployment as real) - m.deployment)/t.deployment * 100 >= 10;
+            """
+            rule_eval(query, name, score)
 
         # CBC cases > 3 in last 30d
         name = ">2 cbc cases in 30d"

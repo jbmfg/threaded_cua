@@ -29,8 +29,6 @@ class prod_connection(object):
         r = s.post(url, json=pd, verify=False)
         pd["googlePasscode"] = self.auth_code
         r = s.post(url, json=pd, verify=False)
-        print(r.content)
-        print(r.status_code)
         # Handle failed google auth code
         if r.status_code == 200 and not r.json()["success"]:
             print("Google auth step failed")
