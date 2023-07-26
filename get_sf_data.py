@@ -237,7 +237,7 @@ def get_new_deployment(sfdb, inst_ids, db):
     select
     i.id,
     max(lic.totaldeployedlastday),
-    max(lic.totaldeploylastdaymonthavg)
+    round(max(lic.totaldeploylastdaymonthavg))
     from edw_tesseract.sbu_ref_sbusfdc.installation__c i
     left join edw_tesseract.sbu_dh.cbcdeployedlicensesendpoint_f lic
         on lic.prodkey = i.cb_defense_backend_instance__c || '|' || i.cb_defense_org_id__c
