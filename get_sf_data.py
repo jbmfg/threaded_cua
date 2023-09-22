@@ -189,6 +189,7 @@ def get_case_info(sfdb, inst_ids, db):
         group by i.Id"""
         data = sfdb.execute(query)
         fields = cases[x][0]
+        print(cases[x][2])
         db.insert(cases[x][2], fields, data)
 
 def get_cta_info(sfdb, inst_ids, db, cta_type):
@@ -244,7 +245,7 @@ def get_new_deployment(sfdb, inst_ids, db):
     left join edw_tesseract.sbu_ref_sbusfdc.account  a on lic.accountsfid = a.Account_ID_18_Digits__c
     where i.id in ('{"','".join(inst_ids)}')
     and calendarid = (select max(calendarid) from edw_tesseract.sbu_dh.cbcdeployedlicensesendpoint_f)
-    and a.cs_tier__c in ('High', 'Medium', 'Low', 'Holding')
+    --and a.cs_tier__c in ('High', 'Medium', 'Low', 'Holding')
     group by i.id
     """
     data = sfdb.execute(query)
