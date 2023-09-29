@@ -127,6 +127,7 @@ class summary_data(object):
         rows = []
         insts = []
         for acct, act_date in data:
+            if not acct: continue
             for inst_id in lookup[acct.lower()]:
                 insts.append(inst_id)
                 rows.append([inst_id, act_date])
