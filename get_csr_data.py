@@ -24,6 +24,7 @@ class csr_data(object):
         del_tables += ["cases_90d"]
         #del_tables = ["customers", "audit"]
         #del_tables = []
+        del_tables = ["dashboards", "connectors", "forwarders", "policy_ids", "rules"]
         for t in del_tables:
             print(f"deleting table {t}")
             query = f"DROP TABLE IF EXISTS {t};"
@@ -394,7 +395,7 @@ class csr_data(object):
                     last_event = ""
                     with open("failure.txt", "a+") as f:
                         f.write(f"{inst_id}, {response}\n")
-                last_report = i["stats"]["lastReportedTime"] if "lastReportedTime" in i["stats"] else ""
+                last_report = i["stats"]["lastReportedTime"] if i["stats"] and "lastReportedTime" in i["stats"] else ""
                 results.append([
                     inst_id,
                     i["createTime"],

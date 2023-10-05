@@ -62,11 +62,14 @@ def get_act_info(sfdb, inst_ids, db):
 def get_installation_info(sfdb, inst_ids, db):
     query = f"""
     select i.id,
-    cast(date_parse(i.createddate, '%Y-%m-%dT%H:%i:%S.000+0000') as date),
-    date_diff('day', date_parse(i.createddate, '%Y-%m-%dT%H:%i:%S.000+0000'), cast(i.x50_percent_deployed_date__c as date))
+    --cast(date_parse(i.createddate, '%Y-%m-%dT%H:%i:%S.000+0000') as date),
+    cast(i.createddate as date),
+    --date_diff('day', date_parse(i.createddate, '%Y-%m-%dT%H:%i:%S.000+0000'), cast(i.x50_percent_deployed_date__c as date))
+    date_diff('day', cast(i.createddate as date), cast(i.x50_percent_deployed_date__c as date))
     from edw_tesseract.sbu_ref_sbusfdc.installation__c i
     where i.id in ('{"','".join(inst_ids)}')
     """
+    print(query)
     data = sfdb.execute(query)
     fields = ["inst_id", "created_date", "days_to_50perc"]
     db.insert("sf_data", fields, data)
