@@ -21,10 +21,6 @@ class csr_data(object):
 
     def delete_existing_tables(self):
         del_tables = ["audit", "kits", "alerts", "endpoints", "dashboards", "connectors", "forwarders", "policy_ids", "rules"]
-        del_tables += ["cases_90d"]
-        #del_tables = ["customers", "audit"]
-        #del_tables = []
-        del_tables = ["dashboards", "connectors", "forwarders", "policy_ids", "rules"]
         for t in del_tables:
             print(f"deleting table {t}")
             query = f"DROP TABLE IF EXISTS {t};"

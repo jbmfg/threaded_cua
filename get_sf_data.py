@@ -9,6 +9,7 @@ from collections import defaultdict
 def initial_insert(db, custs):
     fields = ["inst_id", "backend", "org_id"]
     db.insert("sf_data", fields, custs, pk=True, del_table=True)
+    db.execute("delete from cases_90d;")
 
 def get_act_info(sfdb, inst_ids, db):
     query = f"""
@@ -69,7 +70,6 @@ def get_installation_info(sfdb, inst_ids, db):
     from edw_tesseract.sbu_ref_sbusfdc.installation__c i
     where i.id in ('{"','".join(inst_ids)}')
     """
-    print(query)
     data = sfdb.execute(query)
     fields = ["inst_id", "created_date", "days_to_50perc"]
     db.insert("sf_data", fields, data)
@@ -191,8 +191,8 @@ def get_case_info(sfdb, inst_ids, db):
         and {cases[x][1]}
         group by i.Id"""
         data = sfdb.execute(query)
+        ids = [i[0] for i in data]
         fields = cases[x][0]
-        print(cases[x][2])
         db.insert(cases[x][2], fields, data)
 
 def get_cta_info(sfdb, inst_ids, db, cta_type):
