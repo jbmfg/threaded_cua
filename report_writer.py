@@ -572,7 +572,7 @@ class report(object):
         peak_daily_chart = self.multi_series_chart(sheet, sheet_name, line, breaks[3]+2, breaks[4], [39], "S40", "Peak Daily")
         normalized_chart = self.multi_series_chart(sheet, sheet_name, line, breaks[3]+2, breaks[4], [37], "H59", "Normalized")
 
-    def write_masterlike_data(self, wb, sheet_name, data):
+    def write_masterlike_data(self, wb, sheet_name, data, col1_url=True):
         sheet = wb.add_worksheet(sheet_name)
         header = self.master_header
         header = [i.replace("___", " - ").replace("_", " ").replace("Perc", "%") for i in header]
@@ -589,7 +589,7 @@ class report(object):
                         data[x][xx] = int(cell)
                         if data[x][xx] > 612272122559:
                             data[x][xx] = datetime.datetime.strftime(datetime.datetime.fromtimestamp(data[x][xx]/1000).date(), "%Y-%m-%d")
-        self.writerows(sheet, data, col1url=True, bolder=True)
+        self.writerows(sheet, data, col1url=col1_url, bolder=True)
         money_cols, percent_cols = [], []
         for h in header:
             if "%" in h:
@@ -608,15 +608,25 @@ class report(object):
         for cse in cse_dict:
             print(f"Writing report for {cse.title()}")
             self.wb = xlsxwriter.Workbook("customer_usage_{}.xlsx".format(cse.title()))
+            
+            # Regular Installation Master
+            query = f"""
+            select {self.master_order_txt}
+            from master
+            where lower(cse) = '{cse.lower()}'
+            order by Account_Name;
+            """
+            data = self.db.execute(query)
+            sheet = self.write_masterlike_data(self.wb, "Master", data)
 
-            # Regular master
+            # Regular Account master
             query = f"""
             select {self.master_order_txt}
             from account_master
             where lower(cse) = '{cse.lower()}';
             """
             data = self.db.execute(query)
-            sheet = self.write_masterlike_data(self.wb, "Master", data)
+            sheet = self.write_masterlike_data(self.wb, "Account Master", data, col1_url=False)
 
             # Reds only
             query = f"""
@@ -626,7 +636,7 @@ class report(object):
             and CUA_Brag = 'Red';
             """
             data = self.db.execute(query)
-            sheet = self.write_masterlike_data(self.wb, "Reds", data)
+            sheet = self.write_masterlike_data(self.wb, "Reds", data, col1_url=False)
 
             # Yellows only
             query = f"""
@@ -636,7 +646,7 @@ class report(object):
             and CUA_Brag = 'Yellow';
             """
             data = self.db.execute(query)
-            sheet = self.write_masterlike_data(self.wb, "Yellows", data)
+            sheet = self.write_masterlike_data(self.wb, "Yellows", data, col1_url=False)
 
             query = f"select inst_id, account_name from master where lower(cse) like '{cse.lower()}' order by account_name"
             self.accounts = [[x] + i for x, i in enumerate(self.db.execute(query))]
