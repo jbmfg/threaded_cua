@@ -62,8 +62,8 @@ class summary_data(object):
         fields = ["version", "os", "dl_available", "support_level"]
         self.db.insert("sensor_lookup", fields, all_versions, pk=True, del_table=True)
         # 2023-11-03 VMWDocs site has "3.7.3+" listed which breaks 3.7.3 and above
-        self.db.execute('update sensor_lookup set support_level = "ST" where os = "MAC" and version like "3.7.3%";"')
-        self.db.execute('update sensor_lookup set support_level = "ST" where os = "MAC" and version like "3.7.4%";"')
+        self.db.execute('update sensor_lookup set support_level = "ST" where os = "MAC" and version like "3.7.3%";')
+        self.db.execute('update sensor_lookup set support_level = "ST" where os = "MAC" and version like "3.7.4%";')
 
     def direct_inserts(self):
         ''' Those fields thats are easily available from existing tables'''
