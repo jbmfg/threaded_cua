@@ -446,7 +446,7 @@ class csr_data(object):
                 raise
             results = []
             for i in response:
-                for nw in ("version_constraint", "current_version"):
+                for nw in ("version_constraint", "current_version", "destination"):
                     if nw in i:
                         del i[nw]
                 results.append([inst_id] + [v for v in i.values()])
@@ -614,11 +614,11 @@ if __name__ == "__main__":
     csr, custs = setup(sfdb)
     test_run = csr_data(sfdb, db, csr, new_run=False)
     print("making customer table")
-    test_run.get_policy_ids()
-    test_run.get_rules()
-    test_run.get_dashboards()
-    test_run.get_forwarders()
+    #test_run.get_policy_ids()
+    #test_run.get_rules()
+    #test_run.get_dashboards()
     print("Getting em")
+    test_run.get_forwarders()
     benjam
     test_run.get_endpoints()
     test_run.get_alerts()
