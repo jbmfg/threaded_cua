@@ -59,6 +59,7 @@ class sqlite_db(object):
             return data
 
     def insert(self, table, fields, data, pk=True, del_table=False, update=True):
+        if not data:return
         if del_table: self.execute(f"DROP TABLE IF EXISTS '{table}';")
 
         # Check if table exists

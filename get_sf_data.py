@@ -191,6 +191,10 @@ def get_case_info(sfdb, inst_ids, db):
         and {cases[x][1]}
         group by i.Id"""
         data = sfdb.execute(query)
+        if x == 0 and not data:
+            # Cases are no longer being updated in tesseract
+            data = [[i, 0, 0] for i in inst_ids]
+            print(data)
         ids = [i[0] for i in data]
         fields = cases[x][0]
         db.insert(cases[x][2], fields, data)
@@ -245,10 +249,10 @@ def get_new_deployment(sfdb, inst_ids, db):
     from edw_tesseract.sbu_ref_sbusfdc.installation__c i
     left join edw_tesseract.sbu_dh.cbcdeployedlicensesendpoint_f lic
         on lic.prodkey = i.cb_defense_backend_instance__c || '|' || i.cb_defense_org_id__c
-    left join edw_tesseract.sbu_ref_sbusfdc.account  a on lic.accountsfid = a.Account_ID_18_Digits__c
+    join (
+        select prodkey, max(calendarid) as c from edw_tesseract.sbu_dh.cbcdeployedlicensesendpoint_f group by prodkey) b 
+        on lic.calendarid = b.c and lic.prodkey = b.prodkey
     where i.id in ('{"','".join(inst_ids)}')
-    and calendarid = (select max(calendarid) from edw_tesseract.sbu_dh.cbcdeployedlicensesendpoint_f)
-    --and a.cs_tier__c in ('High', 'Medium', 'Low', 'Holding')
     group by i.id
     """
     data = sfdb.execute(query)

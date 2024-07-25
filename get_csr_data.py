@@ -446,10 +446,13 @@ class csr_data(object):
                 raise
             results = []
             for i in response:
-                for nw in ("version_constraint", "current_version", "destination"):
+                for nw in ("version_constraint", "current_version", "destination", "azure_container_name", "azure_tenant_id", "azure_storage_account"):
                     if nw in i:
                         del i[nw]
-                results.append([inst_id] + [v for v in i.values()])
+                #results.append([inst_id] + [v for v in i.values()])
+                fields = ["id", "org_key", "name", "enabled", "s3_bucket_name"]
+                fields += ["s3_prefix", "type", "create_time", "update_time"]
+                results.append([inst_id] + [i.get(f, None) for f in fields])
             return results
         query = "select inst_id, prod, org_key from customers order by inst_id"
         needs = self.db.execute(query)
@@ -556,6 +559,10 @@ class csr_data(object):
                     print("caught a connection error in policy_ids")
                     continue
                 if "list" not in r:
+                    c+=1
+                    continue
+                elif not r["list"]:
+                    print("not list")
                     c+=1
                     continue
                 org_id = str(r["list"][0]["orgId"])
