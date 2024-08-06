@@ -1,0 +1,1 @@
+Collect and combine custoemer usage data from multiple sources and aggregate into a scorecard.  Usage information sourced from Carbon Black Cloud REST API and internal sources (SQL, web scraping, API, etc) 
